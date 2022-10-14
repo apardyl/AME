@@ -67,10 +67,6 @@ def parse_args():
                         help='number of epochs',
                         type=int,
                         default=30)
-    parser.add_argument('--val-fraction',
-                        help='fraction of the last GT dataset in config, that will be a valid set',
-                        type=float,
-                        default=0.3)
     parser.add_argument('--num-samples',
                         help='number of images to sample in each training epoch',
                         type=int,
@@ -87,10 +83,6 @@ def parse_args():
                         help='learning rate decay each epoch',
                         type=float,
                         default=0.97)
-    parser.add_argument('--warm-up',
-                        help='Warm up the optimizer',
-                        action='store_true',
-                        default=False)
     parser.add_argument('--weight-decay',
                         help='weight_decay',
                         type=float,
@@ -127,10 +119,6 @@ def parse_args():
                         help='early stop training if valid performance doesn’t improve for N consecutive validation runs',
                         type=int,
                         default=10)
-    parser.add_argument('--seq-len',
-                        help='length of the sequence',
-                        type=int,
-                        default=50)
     parser, arch = add_arch_args(parser)
     args = parser.parse_args()
     args.arch = arch
