@@ -65,7 +65,7 @@ class UNet(BaseArchitecture):
         self.retain_dim = retain_dim
         self.output_size = output_size
 
-        self.criterion = FocalLoss(args.alpha, args.gamma)
+        self.criterion = torch.nn.MSELoss()
         self.optimizer = Adam(self.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=args.lr_decay, last_epoch=-1)
 

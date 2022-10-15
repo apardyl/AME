@@ -1,7 +1,9 @@
 Setup:  
 ```shell
 git clone https://bitbucket.org/ideas_ncbr/where-to-look-next && cd where-to-look-next 
-python3 -m venv venv && pip install requirements.txt
+python3 -m venv venv && source venv/bin/activate
+pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113
+pip install requirements.txt
 ```
 Download and unzip MS COCO (25 GB, reconstruction task only):
 ```shell

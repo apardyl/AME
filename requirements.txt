@@ -45,7 +45,7 @@ tensorboard-plugin-wit==1.8.1
 torch==1.12.1+cu113
 torchaudio==0.12.1+cu113
 torchvision==0.13.1+cu113
-tqdm=4.64.1
+tqdm==4.64.1
 typing-extensions==4.4.0
 urllib3==1.26.12
 wandb==0.13.4
