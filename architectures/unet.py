@@ -92,7 +92,8 @@ class UNet(BaseArchitecture):
         return parser
 
     def calculate_loss(self, out, batch):
-        return self.criterion(out, batch["target"])
+        loss = self.criterion(out, batch["target"])
+        return loss, {"MSE": loss}
 
     def on_epoch_end(self):
         self.lr_scheduler.step()

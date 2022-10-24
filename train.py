@@ -8,6 +8,7 @@ import logging
 from utils.metrics import ReconstructionMetricsLogger
 from torch.utils.data import DataLoader, RandomSampler
 from torch.cuda.amp import autocast, GradScaler
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from data_utils.datasets import ReconstructionDataset, create_train_val_datasets
@@ -20,14 +21,14 @@ torch.manual_seed(1)
 
 
 def train_epoch(train_loader, device, model, args, grad_scaler):
-    metrics_logger = ReconstructionMetricsLogger(args)
+    metrics_logger = ReconstructionMetricsLogger("train", args)
     model.train()
     for batch in tqdm(train_loader, desc="epoch"):
         dict_to_device(batch, device)
         model.module.optimizer.zero_grad()
         with autocast(enabled=args.use_fp16):
             out = model(batch)
-            loss = model.module.calculate_loss(out, batch)
+            loss, loss_dict = model.module.calculate_loss(out, batch)
         if args.use_fp16:
             grad_scaler.scale(loss).backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
@@ -37,13 +38,13 @@ def train_epoch(train_loader, device, model, args, grad_scaler):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
             model.module.optimizer.step()
-        metrics_logger.log(out, batch, float(loss))
+        metrics_logger.log(out, batch, loss_dict)
         model.module.on_iter_end()
-    return metrics_logger.get_epoch_result()
+    return metrics_logger
 
 
 def eval_epoch(loader, device, model, args):
-    metrics_logger = ReconstructionMetricsLogger(args)
+    metrics_logger = ReconstructionMetricsLogger("valid", args)
     model.eval()
     with torch.no_grad():
         for batch in tqdm(loader, desc="epoch"):
@@ -51,10 +52,10 @@ def eval_epoch(loader, device, model, args):
 
             with autocast(enabled=args.use_fp16):
                 out = model(batch)
-                loss = model.module.calculate_loss(out, batch)
+                loss, loss_dict = model.module.calculate_loss(out, batch)
 
-            metrics_logger.log(out, batch, float(loss))
-    return metrics_logger.get_epoch_result()
+            metrics_logger.log(out, batch, loss_dict)
+    return metrics_logger
 
 
 def main():
@@ -89,15 +90,17 @@ def main():
     logging.info(f'The model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters\n')
     logging.info(f'The model has {sum(p.numel() for p in model.parameters() if not p.requires_grad):,} frozen parameters\n')
 
+    tb_writer = SummaryWriter(args.checkpoint_dir)
+    tb_writer.add_text("args", str(args))
     best_val_metric, best_epoch = 999, 0
     for epoch in range(args.epochs):
         start_time = time.time()
 
-        train_metrics = train_epoch(train_loader, device, model, args, grad_scaler)
-        val_metrics = eval_epoch(valid_loader, device, model, args)
+        train_metrics = train_epoch(train_loader, device, model, args, grad_scaler).get_epoch_result(tb_writer, epoch)
+        val_metrics = eval_epoch(valid_loader, device, model, args).get_epoch_result(tb_writer, epoch)
 
-        save_model(model.module, args.checkpoint_dir, val_metrics["RMSE"] > best_val_metric)
-        if val_metrics["RMSE"] > best_val_metric:
+        save_model(model.module, args.checkpoint_dir, val_metrics["RMSE"] < best_val_metric)
+        if val_metrics["RMSE"] < best_val_metric:
             best_val_metric = val_metrics["RMSE"]
             best_epoch = epoch
 
