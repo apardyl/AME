@@ -11,11 +11,11 @@ class ReconstructionMetricsLogger:
 
     def log(self, output, batch: dict, loss: dict):
         bsz = output.shape[0]
-        self.losses.append(bsz * loss["MSE"])
+        self.losses.append(bsz * float(loss["MSE"]))
         rmse = torch.mean(torch.sqrt(torch.mean((output - batch["target"])**2, [1, 2, 3])))
-        self.rmses.append(bsz * rmse)
+        self.rmses.append(bsz * float(rmse))
         tinas_stupid_metric = torch.mean(torch.sqrt(torch.sum((output - batch["target"]) ** 2, 1)), [0, 1, 2])
-        self.tina.append(bsz * tinas_stupid_metric)
+        self.tina.append(bsz * float(tinas_stupid_metric))
 
     def get_epoch_result(self, tb_writer, epoch, eps=1e-8):
         loss = sum(self.losses) / (len(self.losses) + eps)
