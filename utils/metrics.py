@@ -3,6 +3,7 @@ import os
 import torch
 
 from PIL import Image
+from data_utils.datasets import IMAGENET_MEAN, IMAGENET_STD
 
 
 class ReconstructionMetricsLogger:
@@ -29,8 +30,8 @@ class ReconstructionMetricsLogger:
         if self.visualizations_to_save > 0 and (self.mode == "valid" or self.mode == "test"):
             dump_path = f"{self.checkpoint_dir}/{self.epoch}"
             os.makedirs(dump_path, exist_ok=True)
-            output = torch.clip(output, 0, 1).detach().cpu() * 255
-            target = batch["target"].cpu() * 255
+            output = torch.clip((output.detach().cpu() * IMAGENET_STD + IMAGENET_MEAN) * 255, 0, 255)
+            target = torch.clip((batch["target"].cpu() * IMAGENET_STD + IMAGENET_MEAN) * 255, 0, 255)
             for i in range(bsz):
                 out_image = np.array(output[i].permute(1, 2, 0), dtype=np.uint8)
                 out_image = Image.fromarray(out_image)

@@ -20,41 +20,41 @@ random.seed(1)
 torch.manual_seed(1)
 
 
-def train_epoch(train_loader, device, model, args, grad_scaler):
-    metrics_logger = ReconstructionMetricsLogger("train", args)
+def train_epoch(train_loader, device, model, epoch, args, grad_scaler):
+    metrics_logger = ReconstructionMetricsLogger(epoch, "valid", args)
     model.train()
     for batch in tqdm(train_loader, desc="epoch"):
         dict_to_device(batch, device)
-        model.module.optimizer.zero_grad()
-        with autocast(enabled=args.use_fp16):
-            out = model(batch)
-            loss, loss_dict = model.module.calculate_loss(out, batch)
-        if args.use_fp16:
-            grad_scaler.scale(loss).backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-            grad_scaler.step(model.module.optimizer)
-            grad_scaler.update()
-        else:
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-            model.module.optimizer.step()
-        metrics_logger.log(out, batch, loss_dict)
-        model.module.on_iter_end()
+        for i in range(args.num_glimpses):
+            model.optimizer.zero_grad()
+            with autocast(enabled=args.use_fp16):
+                out = model(batch["image"])
+                loss, loss_dict = model.calculate_loss(out, batch)
+            if args.use_fp16:
+                grad_scaler.scale(loss).backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+                grad_scaler.step(model.optimizer)
+                grad_scaler.update()
+            else:
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+                model.optimizer.step()
+            metrics_logger.log(out, batch, loss_dict)
+        model.on_iter_end()
     return metrics_logger
 
 
-def eval_epoch(loader, device, model, args):
-    metrics_logger = ReconstructionMetricsLogger("valid", args)
+def eval_epoch(loader, device, model, epoch, args):
+    metrics_logger = ReconstructionMetricsLogger(epoch, "valid", args)
     model.eval()
     with torch.no_grad():
         for batch in tqdm(loader, desc="epoch"):
             dict_to_device(batch, device)
-
-            with autocast(enabled=args.use_fp16):
-                out = model(batch)
-                loss, loss_dict = model.module.calculate_loss(out, batch)
-
-            metrics_logger.log(out, batch, loss_dict)
+            for i in range(args.num_glimpses):
+                with autocast(enabled=args.use_fp16):
+                    out = model(batch["image"])
+                    loss, loss_dict = model.calculate_loss(out, batch)
+                metrics_logger.log(out, batch, loss_dict)
     return metrics_logger
 
 
@@ -68,10 +68,9 @@ def main():
 
     # Load model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = args.arch(args)
+    model = args.arch(args).to(device)
     if args.load_model_path:
         model.load_state_dict(torch.load(args.load_model_path))
-    model = torch.nn.DataParallel(model)
 
     grad_scaler = GradScaler()
 
@@ -96,16 +95,16 @@ def main():
     for epoch in range(args.epochs):
         start_time = time.time()
 
-        train_metrics = train_epoch(train_loader, device, model, args, grad_scaler).get_epoch_result(tb_writer, epoch)
-        val_metrics = eval_epoch(valid_loader, device, model, args).get_epoch_result(tb_writer, epoch)
+        train_metrics = train_epoch(train_loader, device, model, epoch, args, grad_scaler).get_epoch_result(tb_writer)
+        val_metrics = eval_epoch(valid_loader, device, model, epoch, args).get_epoch_result(tb_writer)
 
-        save_model(model.module, args.checkpoint_dir, val_metrics["RMSE"] < best_val_metric)
+        save_model(model, args.checkpoint_dir, val_metrics["RMSE"] < best_val_metric)
         if val_metrics["RMSE"] < best_val_metric:
             best_val_metric = val_metrics["RMSE"]
             best_epoch = epoch
 
         epoch_mins, epoch_secs = epoch_time(start_time, time.time())
-        model.module.on_epoch_end()
+        model.on_epoch_end()
 
         logging.info('Epoch: {} | Time: {}m {}s'.format(epoch, epoch_mins, epoch_secs))
         logging.info(ReconstructionMetricsLogger.result_to_string(train_metrics, "Train "))

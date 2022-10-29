@@ -59,6 +59,10 @@ def parse_args():
                         help='mini batch size',
                         type=int,
                         default=64)
+    parser.add_argument('--num-glimpses',
+                        help='number of glimpses to take',
+                        type=int,
+                        default=8)
     parser.add_argument('--num-workers',
                         help='data loader workers',
                         type=int,

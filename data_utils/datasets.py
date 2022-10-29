@@ -6,6 +6,9 @@ from torch.utils.data import Dataset, ConcatDataset
 from config import TRAIN_PATH, VALID_PATH, IMG_SIZE
 from PIL import Image
 
+IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).unsqueeze_(1).unsqueeze_(1)
+IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225]).unsqueeze_(1).unsqueeze_(1)
+
 
 class ReconstructionDataset(torch.utils.data.Dataset):
     def __init__(self, root_dir, transform=None):
@@ -33,7 +36,9 @@ class ReconstructionDataset(torch.utils.data.Dataset):
     @staticmethod
     def custom_collate(data):
         data = torch.stack(data) / 255
-        return {"input": data,
+        data -= IMAGENET_MEAN
+        data /= IMAGENET_STD
+        return {"image": data,
                 "target": data}
 
 
