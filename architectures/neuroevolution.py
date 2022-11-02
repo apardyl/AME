@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.optim import Adam
 
 from architectures.utils import BaseArchitecture
-from config import IMG_SIZE, GLIMPSE_SIZE
+from config import IMG_SIZE, GLIMPSE_SIZE, GLIMPSES_W, GLIMPSES_H
 from architectures.mae import mae_vit_large_patch16
 
 
@@ -15,6 +15,7 @@ class RandomMae(BaseArchitecture):
         self.mae.load_state_dict(torch.load("architectures/mae_visualize_vit_large.pth", map_location='cpu')["model"], strict=True)
         for p in self.mae.parameters():
             p.requires_grad = False
+        self.glimpse_selector = RandomGlimpseSelector()
 
         self.criterion = torch.nn.MSELoss()
         self.optimizer = Adam(self.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -22,10 +23,13 @@ class RandomMae(BaseArchitecture):
 
     def forward(self, x):
         with torch.no_grad():
-            latent, mask, ids_restore = self.mae.forward_encoder(x, 0.75)
-            pred = self.mae.forward_decoder(latent, ids_restore)
-            pred = self.mae.unpatchify(pred)
-        return pred
+            mask = torch.full((x.shape[0], GLIMPSES_W * GLIMPSES_H), fill_value=False, device=x.device)
+            for i in range(8):
+                mask = self.glimpse_selector(mask)
+                latent, mask = self.mae.forward_encoder(x, mask)
+                pred = self.mae.forward_decoder(latent, mask)
+                pred = self.mae.unpatchify(pred)
+        return {"out": pred, "mask": mask}
 
     def next_glimpse(self, *args):
         return self.glimpse_selector(args)
@@ -43,8 +47,27 @@ class RandomMae(BaseArchitecture):
         return parser
 
     def calculate_loss(self, out, batch):
-        loss = self.criterion(out, batch["target"])
+        loss = self.criterion(out["out"], batch["target"])
         return loss, {"MSE": float(loss)}
 
     def on_epoch_end(self):
         self.lr_scheduler.step()
+
+
+class RandomGlimpseSelector(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, mask):
+        N, L = mask.shape
+        new_glimpse_x = torch.randint(0, GLIMPSES_W // 2 - 1, size=(N, 1), device=mask.device)
+        new_glimpse_y = torch.randint(0, GLIMPSES_H // 2 - 1, size=(N, 1), device=mask.device)
+        glimpses = 2 * GLIMPSES_H * new_glimpse_x + 2 * new_glimpse_y
+        glimpses_down = glimpses + 1
+        glimpses_right = glimpses + GLIMPSES_H
+        glimpses_down_right = glimpses_right + 1
+
+        glimpses = torch.cat((glimpses, glimpses_down, glimpses_right, glimpses_down_right), dim=1)
+        mask.scatter_(1, glimpses, torch.full_like(mask, fill_value=True))
+
+        return mask

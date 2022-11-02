@@ -25,21 +25,21 @@ def train_epoch(train_loader, device, model, epoch, args, grad_scaler):
     model.train()
     for batch in tqdm(train_loader, desc="epoch"):
         dict_to_device(batch, device)
-        for i in range(args.num_glimpses):
-            model.optimizer.zero_grad()
-            with autocast(enabled=args.use_fp16):
-                out = model(batch["image"])
-                loss, loss_dict = model.calculate_loss(out, batch)
-            if args.use_fp16:
-                grad_scaler.scale(loss).backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-                grad_scaler.step(model.optimizer)
-                grad_scaler.update()
-            else:
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-                model.optimizer.step()
-            metrics_logger.log(out, batch, loss_dict)
+
+        model.optimizer.zero_grad()
+        with autocast(enabled=args.use_fp16):
+            out = model(batch["image"])
+            loss, loss_dict = model.calculate_loss(out, batch)
+        if args.use_fp16:
+            grad_scaler.scale(loss).backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            grad_scaler.step(model.optimizer)
+            grad_scaler.update()
+        # else:
+        #     loss.backward()
+        #     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        #     model.optimizer.step()
+        metrics_logger.log(out, batch, loss_dict)
         model.on_iter_end()
     return metrics_logger
 
@@ -50,11 +50,10 @@ def eval_epoch(loader, device, model, epoch, args):
     with torch.no_grad():
         for batch in tqdm(loader, desc="epoch"):
             dict_to_device(batch, device)
-            for i in range(args.num_glimpses):
-                with autocast(enabled=args.use_fp16):
-                    out = model(batch["image"])
-                    loss, loss_dict = model.calculate_loss(out, batch)
-                metrics_logger.log(out, batch, loss_dict)
+            with autocast(enabled=args.use_fp16):
+                out = model(batch["image"])
+                loss, loss_dict = model.calculate_loss(out, batch)
+            metrics_logger.log(out, batch, loss_dict)
     return metrics_logger
 
 
