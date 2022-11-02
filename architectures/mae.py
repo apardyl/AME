@@ -157,7 +157,7 @@ class MaskedAutoencoderViT(nn.Module):
             x = blk(x)
         x = self.norm(x)
 
-        return x, mask
+        return x
 
     def forward_decoder(self, x, mask):
         # embed tokens
@@ -200,12 +200,6 @@ class MaskedAutoencoderViT(nn.Module):
 
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         return loss
-
-    def forward(self, imgs, mask_ratio=0.75):
-        latent, mask = self.forward_encoder(imgs, mask_ratio)
-        pred = self.forward_decoder(latent, mask)  # [N, L, p*p*3]
-        loss = self.forward_loss(imgs, pred, mask)
-        return loss, pred, mask
 
 
 def mae_vit_base_patch16_dec512d8b(**kwargs):
