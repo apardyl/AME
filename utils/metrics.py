@@ -85,7 +85,7 @@ def patchify(imgs):
     x: (N, L, patch_size**2 *3)
     """
 
-    p = GLIMPSE_SIZE[1]
+    p = GLIMPSE_SIZE
     x = imgs.reshape(shape=(imgs.shape[0], 3, GLIMPSES_H, p, GLIMPSES_W, p))
     x = torch.einsum('nchpwq->nhwpqc', x)
     x = x.reshape(shape=(imgs.shape[0], GLIMPSES_H * GLIMPSES_W, p * p * 3))
@@ -97,8 +97,8 @@ def unpatchify(x):
     x: (N, L, patch_size**2 *3)
     imgs: (N, 3, H, W)
     """
-    p = GLIMPSE_SIZE[1]
+    p = GLIMPSE_SIZE
     x = x.reshape(shape=(x.shape[0], GLIMPSES_H, GLIMPSES_W, p, p, 3))
     x = torch.einsum('nhwpqc->nchpwq', x)
-    imgs = x.reshape(shape=(x.shape[0], 3, p * GLIMPSES_H, p * GLIMPSES_H))
+    imgs = x.reshape(shape=(x.shape[0], 3, p * GLIMPSES_H, p * GLIMPSES_W))
     return imgs
