@@ -8,13 +8,13 @@ pip install requirements.txt
 Download and unzip MS COCO (25 GB, reconstruction task only):
 ```shell
 mkdir data && cd data && mkdir coco
-curl -O http://images.cocodataset.org/zips/train2017.zip -O http://images.cocodataset.org/zips/val2017.zip -O http://images.cocodataset.org/zips/test2017.zip
-unzip train2017.zip -d coco
-unzip val2017.zip -d coco
-unzip test2017.zip -d coco
+curl -O http://images.cocodataset.org/zips/train2014.zip -O http://images.cocodataset.org/zips/val2014.zip -O http://images.cocodataset.org/zips/test2014.zip
+unzip train2014.zip -d coco
+unzip val2014.zip -d coco
+unzip test2014.zip -d coco
 rm *.zip && cd ..
 ```
-Run U-Net for reconstruction task (no glimpses yet, input is full image)
+Run finetuning of MAE with random glimpse selection
 ```shell
-CUDA_VISIBLE_DEVICES=0 python train.py --num-samples 100000 --num-workers 8 --batch-size 64 --lr 1e-3 --lr-decay 0.95 --weight-decay 1e-5 --arch UNet --enc-channels 3 8 16 32 64 128 --dec-channels 128 64 32 16 8
+CUDA_VISIBLE_DEVICES=0 python train.py --arch RandomMae --num-samples 50000 --epochs 10 --num-workers 8 --batch-size 64 --lr 1e-5
 ```

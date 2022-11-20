@@ -10,7 +10,7 @@ from architectures.utils import add_arch_args
 def dict_to_device(d: dict, device):
     for key in d.keys():
         if torch.is_tensor(d[key]):
-            d[key] = d[key].to(device)
+            d[key] = d[key].to(device, non_blocking=True)
 
 
 def save_model(model, path, is_best):

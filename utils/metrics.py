@@ -23,6 +23,7 @@ class ReconstructionMetricsLogger:
     def log(self, output, batch: dict, loss: dict):
         with torch.no_grad():
             bsz = output["out"].shape[0]
+            output["out"] = unpatchify(output["out"])
             self.total_samples += bsz
             self.losses.append(bsz * float(loss["MSE"]))
             reconstructed = torch.clip((output["out"].detach().cpu() * IMAGENET_STD + IMAGENET_MEAN) * 255, 0, 255)

@@ -21,7 +21,7 @@ torch.manual_seed(1)
 
 
 def train_epoch(train_loader, device, model, epoch, args, grad_scaler):
-    metrics_logger = ReconstructionMetricsLogger(epoch, "valid", args)
+    metrics_logger = ReconstructionMetricsLogger(epoch, "train", args)
     model.train()
     for batch in tqdm(train_loader, desc="epoch"):
         dict_to_device(batch, device)
@@ -35,10 +35,10 @@ def train_epoch(train_loader, device, model, epoch, args, grad_scaler):
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
             grad_scaler.step(model.optimizer)
             grad_scaler.update()
-        # else:
-        #     loss.backward()
-        #     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-        #     model.optimizer.step()
+        else:
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            model.optimizer.step()
         metrics_logger.log(out, batch, loss_dict)
         model.on_iter_end()
     return metrics_logger
@@ -90,7 +90,7 @@ def main():
 
     tb_writer = SummaryWriter(args.checkpoint_dir)
     tb_writer.add_text("args", str(args))
-    best_val_metric, best_epoch = 999, 0
+    best_val_metric, best_epoch = 1e8, 0
     for epoch in range(args.epochs):
         start_time = time.time()
 

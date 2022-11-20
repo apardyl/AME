@@ -16,8 +16,8 @@ class RandomMae(BaseArchitecture):
         del checkpoint['pos_embed']
         del checkpoint['decoder_pos_embed']
         self.mae.load_state_dict(checkpoint, strict=False)
-        for p in self.mae.parameters():
-            p.requires_grad = False
+        # for p in self.mae.parameters():
+        #     p.requires_grad = False
         self.num_glimpses = args.num_glimpses
         self.glimpse_selector = RandomGlimpseSelector()
 
@@ -26,14 +26,15 @@ class RandomMae(BaseArchitecture):
         self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=args.lr_decay, last_epoch=-1)
 
     def forward(self, x):
-        with torch.no_grad():
-            mask = torch.full((x.shape[0], GLIMPSES_W * GLIMPSES_H), fill_value=False, device=x.device)
-            for i in range(self.num_glimpses):
-                mask = self.glimpse_selector(mask, i)
-                latent = self.mae.forward_encoder(x, mask)
-                pred = self.mae.forward_decoder(latent, mask)
-                pred = self.mae.unpatchify(pred)
-        return {"out": pred, "mask": mask}
+        mask = torch.full((x.shape[0], GLIMPSES_W * GLIMPSES_H), fill_value=False, device=x.device)
+        mask_indices = torch.empty((x.shape[0], 0), dtype=torch.int64, device=x.device)
+        losses = []
+        for i in range(self.num_glimpses):
+            mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
+            latent = self.mae.forward_encoder(x, mask, mask_indices)
+            pred = self.mae.forward_decoder(latent, mask, mask_indices)
+            losses.append(self.mae.forward_loss(x, pred, mask))
+        return {"out": pred, "mask": mask, "losses": losses}
 
     @staticmethod
     def add_args(parser):
@@ -48,7 +49,8 @@ class RandomMae(BaseArchitecture):
         return parser
 
     def calculate_loss(self, out, batch):
-        loss = self.criterion(out["out"], batch["target"])
+        """ Aggregate losses from all time steps"""
+        loss = torch.mean(torch.stack(out["losses"]))
         return loss, {"MSE": float(loss)}
 
     def on_epoch_end(self):
@@ -65,19 +67,18 @@ class RandomGlimpseSelector(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, mask, glimpse_num):  # does not work for batch size > 1 because it can overlap
+    def forward(self, mask, mask_indices, glimpse_num):  # does not work for batch size > 1 because it can overlap
         N, L = mask.shape
-        new_glimpse_x = torch.randint(0, GLIMPSES_W // 2 - 1, size=(N, 1), device=mask.device)
-        new_glimpse_y = torch.randint(0, GLIMPSES_H // 2 - 1, size=(N, 1), device=mask.device)
-        glimpses = 2 * GLIMPSES_W * new_glimpse_y + 2 * new_glimpse_x
-        glimpses_down = glimpses + 1
-        glimpses_right = glimpses + GLIMPSES_W
-        glimpses_down_right = glimpses_right + 1
-
-        glimpses = torch.cat((glimpses, glimpses_down, glimpses_right, glimpses_down_right), dim=1)
-        mask.scatter_(1, glimpses, torch.full_like(mask, fill_value=True))
-
-        return mask
+        new_glimpse_x = torch.randint(0, GLIMPSES_W - 2, size=(N, 1), device=mask.device)
+        new_glimpse_y = torch.randint(0, GLIMPSES_H - 2, size=(N, 1), device=mask.device)
+        glimpses = GLIMPSES_W * new_glimpse_y + new_glimpse_x
+        glimpses = glimpses.repeat(1, 3)
+        glimpses[:, 1] += 1
+        glimpses[:, 2] += 2
+        glimpses = torch.cat((glimpses, glimpses + GLIMPSES_W, glimpses + 2*GLIMPSES_W), dim=1)
+        mask = mask.scatter(1, glimpses, torch.full_like(mask, fill_value=True))
+        mask_indices = torch.cat((mask_indices, glimpses), dim=1)
+        return mask, mask_indices
 
 
 class CheckerboardGlimpseSelector(nn.Module):
