@@ -6,6 +6,7 @@ from torch.optim import Adam
 from architectures.utils import BaseArchitecture
 from config import IMG_SIZE, GLIMPSE_SIZE, GLIMPSES_W, GLIMPSES_H
 from architectures.mae import mae_vit_large_patch16
+from architectures.utils import WarmUpScheduler
 
 
 class RandomMae(BaseArchitecture):
@@ -21,9 +22,8 @@ class RandomMae(BaseArchitecture):
         self.num_glimpses = args.num_glimpses
         self.glimpse_selector = RandomGlimpseSelector()
 
-        self.criterion = torch.nn.MSELoss()
         self.optimizer = Adam(self.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=args.lr_decay, last_epoch=-1)
+        self.lr_scheduler = WarmUpScheduler(self.optimizer, args.num_samples // args.batch_size, args.lr_decay)
 
     def forward(self, x):
         mask = torch.full((x.shape[0], GLIMPSES_W * GLIMPSES_H), fill_value=False, device=x.device)
@@ -53,8 +53,11 @@ class RandomMae(BaseArchitecture):
         loss = torch.mean(torch.stack(out["losses"]))
         return loss, {"MSE": float(loss)}
 
+    def on_iter_end(self):
+        self.lr_scheduler.step_iter()
+
     def on_epoch_end(self):
-        self.lr_scheduler.step()
+        self.lr_scheduler.step_epoch()
 
 
 class CheckerboardMae(RandomMae):
