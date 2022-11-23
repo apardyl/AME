@@ -70,7 +70,8 @@ class RandomGlimpseSelector(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, mask, mask_indices, glimpse_num):  # does not work for batch size > 1 because it can overlap
+    def forward(self, mask, mask_indices, glimpse_num):
+        """True in mask represents patches kept, False removed"""
         N, L = mask.shape
         new_glimpse_x = torch.randint(0, GLIMPSES_W - 2, size=(N, 1), device=mask.device)
         new_glimpse_y = torch.randint(0, GLIMPSES_H - 2, size=(N, 1), device=mask.device)
