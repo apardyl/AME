@@ -91,7 +91,7 @@ class CheckerboardGlimpseSelector(nn.Module):
         self.coordinates = [(1, 1), (5, 1), (9, 1), (13, 1),
                             (1, 5), (5, 5), (9, 5), (13, 5)]
 
-    def forward(self, mask, glimpse_num):
+    def forward(self, mask, mask_indices, glimpse_num):
         N, L = mask.shape
         to_take = self.coordinates[glimpse_num]
         new_glimpse_x = torch.full((N, 1), fill_value=to_take[0], device=mask.device)
@@ -102,5 +102,6 @@ class CheckerboardGlimpseSelector(nn.Module):
         glimpses[:, 2] += 2
         glimpses = torch.cat((glimpses, glimpses + GLIMPSES_W, glimpses + 2*GLIMPSES_W), dim=1)
         mask.scatter_(1, glimpses, torch.full_like(mask, fill_value=True))
+        mask_indices = torch.cat((mask_indices, glimpses), dim=1)
 
-        return mask
+        return mask, mask_indices
