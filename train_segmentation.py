@@ -55,7 +55,6 @@ def eval_epoch(loader, device, model, epoch, args):
                 out = model(batch["image"], batch["target"])
                 loss, loss_dict = model.calculate_loss(out, batch)
             metrics_logger.log(out, batch, loss_dict)
-            break
     return metrics_logger
 
 
