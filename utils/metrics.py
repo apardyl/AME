@@ -80,26 +80,74 @@ class ReconstructionMetricsLogger:
         return f"{prefix}Loss: {10**2*r['loss']:.3f} RMSE: {r['RMSE']:.2f} Tina: {r['Tina']:.2f}"
 
 
+class SegmentationMetricsLogger:
+    def __init__(self, epoch: int, mode: str, args):
+        self.epoch = epoch
+        self.mode = mode  # train, valid or test
+        self.checkpoint_dir = args.checkpoint_dir
+        self.total_samples = 0
+        self.losses = []
+        self.pixel_acc = []
+
+        self.visualizations_to_save = 10  # For valid and test modes create this number of visualizations
+
+    def log(self, output, batch: dict, loss: dict):
+        with torch.no_grad():
+            out = unpatchify(output["out"])
+            target = batch["target"]
+            mask = output["mask"]
+            bsz = out.shape[0]
+            self.total_samples += bsz
+            self.losses.append(bsz * float(loss["CE"]))
+
+            # calculate mean pixelwise accuracy
+            predicted_class = torch.argmax(out, dim=1)
+            predicted_class = patchify(predicted_class.unsqueeze(1))
+            target = patchify(target.unsqueeze(1))
+            mask_neg = ~mask
+            is_TP = predicted_class[mask_neg] == target[mask_neg]
+            mAP = torch.sum(is_TP) / (is_TP.shape[0] * is_TP.shape[1])
+            self.pixel_acc.append(bsz * float(mAP))
+
+    def get_epoch_result(self, tb_writer):
+        loss = sum(self.losses) / self.total_samples
+        mAP = sum(self.pixel_acc) / self.total_samples
+
+        tb_writer.add_scalar(f'Loss/{self.mode}', loss, self.epoch)
+        tb_writer.add_scalar(f'mAP/{self.mode}', mAP, self.epoch)
+
+        return {
+            "loss": loss,
+            "mAP": mAP,
+        }
+
+    @staticmethod
+    def result_to_string(result: dict, prefix=""):
+        r = result
+        return f"{prefix}Loss: {10**2*r['loss']:.3f} mAP: {100*r['mAP']:.2f}"
+
+
 def patchify(imgs):
     """
     imgs: (N, 3, H, W)
     x: (N, L, patch_size**2 *3)
     """
-
+    c = imgs.shape[1]
     p = GLIMPSE_SIZE
-    x = imgs.reshape(shape=(imgs.shape[0], 3, GLIMPSES_H, p, GLIMPSES_W, p))
+    x = imgs.reshape(shape=(imgs.shape[0], c, GLIMPSES_H, p, GLIMPSES_W, p))
     x = torch.einsum('nchpwq->nhwpqc', x)
-    x = x.reshape(shape=(imgs.shape[0], GLIMPSES_H * GLIMPSES_W, p * p * 3))
+    x = x.reshape(shape=(imgs.shape[0], GLIMPSES_H * GLIMPSES_W, p * p * c))
     return x
 
 
 def unpatchify(x):
     """
-    x: (N, L, patch_size**2 *3)
-    imgs: (N, 3, H, W)
+    x: (N, L, patch_size**2 *C)
+    imgs: (N, C, H, W)
     """
     p = GLIMPSE_SIZE
-    x = x.reshape(shape=(x.shape[0], GLIMPSES_H, GLIMPSES_W, p, p, 3))
+    c = int(x.shape[2] / p ** 2)
+    x = x.reshape(shape=(x.shape[0], GLIMPSES_H, GLIMPSES_W, p, p, c))
     x = torch.einsum('nhwpqc->nchpwq', x)
-    imgs = x.reshape(shape=(x.shape[0], 3, p * GLIMPSES_H, p * GLIMPSES_W))
+    imgs = x.reshape(shape=(x.shape[0], c, p * GLIMPSES_H, p * GLIMPSES_W))
     return imgs

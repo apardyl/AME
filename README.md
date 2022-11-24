@@ -18,3 +18,10 @@ Run finetuning of MAE with random glimpse selection
 ```shell
 CUDA_VISIBLE_DEVICES=0 python train.py --arch RandomMae --num-samples 50000 --epochs 10 --num-workers 8 --batch-size 64 --lr 1e-5
 ```
+
+Download ADE20K:
+```shell
+wget -O ADEChallengeData2016.zip http://data.csail.mit.edu/places/ADEchallenge/ADEChallengeData2016.zip
+unzip ADEChallengeData2016.zip
+```
+Change directories to those SegmentationDataset requires

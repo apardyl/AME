@@ -5,14 +5,14 @@ import time
 import torch
 import logging
 
-from config import TRAIN_PATH, VALID_PATH
-from utils.metrics import ReconstructionMetricsLogger
+from config import TRAIN_SEG_PATH, VALID_SEG_PATH
+from utils.metrics import SegmentationMetricsLogger
 from torch.utils.data import DataLoader, RandomSampler
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from data_utils.datasets import ReconstructionDataset, create_train_val_datasets
+from data_utils.datasets import SegmentationDataset, create_train_val_datasets
 from utils.train import parse_args, epoch_time, save_model, create_checkpoint_dir, dict_to_device
 
 
@@ -22,14 +22,14 @@ torch.manual_seed(1)
 
 
 def train_epoch(train_loader, device, model, epoch, args, grad_scaler):
-    metrics_logger = ReconstructionMetricsLogger(epoch, "train", args)
+    metrics_logger = SegmentationMetricsLogger(epoch, "train", args)
     model.train()
     for batch in tqdm(train_loader, desc="epoch"):
         dict_to_device(batch, device)
 
         model.optimizer.zero_grad()
         with autocast(enabled=args.use_fp16):
-            out = model(batch["image"])
+            out = model(batch["image"], batch["target"])
             loss, loss_dict = model.calculate_loss(out, batch)
         if args.use_fp16:
             grad_scaler.scale(loss).backward()
@@ -46,15 +46,16 @@ def train_epoch(train_loader, device, model, epoch, args, grad_scaler):
 
 
 def eval_epoch(loader, device, model, epoch, args):
-    metrics_logger = ReconstructionMetricsLogger(epoch, "valid", args)
+    metrics_logger = SegmentationMetricsLogger(epoch, "valid", args)
     model.eval()
     with torch.no_grad():
         for batch in tqdm(loader, desc="epoch"):
             dict_to_device(batch, device)
             with autocast(enabled=args.use_fp16):
-                out = model(batch["image"])
+                out = model(batch["image"], batch["target"])
                 loss, loss_dict = model.calculate_loss(out, batch)
             metrics_logger.log(out, batch, loss_dict)
+            break
     return metrics_logger
 
 
@@ -75,11 +76,11 @@ def main():
     grad_scaler = GradScaler()
 
     # Initialize dataloaders
-    train_dataset, valid_dataset = create_train_val_datasets(ReconstructionDataset, TRAIN_PATH, VALID_PATH)
+    train_dataset, valid_dataset = create_train_val_datasets(SegmentationDataset, TRAIN_SEG_PATH, VALID_SEG_PATH)
 
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=ReconstructionDataset.custom_collate, num_workers=args.num_workers,
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=SegmentationDataset.custom_collate, num_workers=args.num_workers,
                               sampler=RandomSampler(train_dataset, replacement=True, num_samples=args.num_samples))
-    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=ReconstructionDataset.custom_collate,
+    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=SegmentationDataset.custom_collate,
                               shuffle=False, num_workers=args.num_workers)
 
     logging.info((vars(args)))
@@ -91,24 +92,24 @@ def main():
 
     tb_writer = SummaryWriter(args.checkpoint_dir)
     tb_writer.add_text("args", str(args))
-    best_val_metric, best_epoch = 1e8, 0
+    best_val_metric, best_epoch = 0, 0
     for epoch in range(args.epochs):
         start_time = time.time()
 
         train_metrics = train_epoch(train_loader, device, model, epoch, args, grad_scaler).get_epoch_result(tb_writer)
         val_metrics = eval_epoch(valid_loader, device, model, epoch, args).get_epoch_result(tb_writer)
 
-        save_model(model, args.checkpoint_dir, val_metrics["RMSE"] < best_val_metric)
-        if val_metrics["RMSE"] < best_val_metric:
-            best_val_metric = val_metrics["RMSE"]
+        save_model(model, args.checkpoint_dir, val_metrics["mAP"] > best_val_metric)
+        if val_metrics["mAP"] > best_val_metric:
+            best_val_metric = val_metrics["mAP"]
             best_epoch = epoch
 
         epoch_mins, epoch_secs = epoch_time(start_time, time.time())
         model.on_epoch_end()
 
         logging.info('Epoch: {} | Time: {}m {}s'.format(epoch, epoch_mins, epoch_secs))
-        logging.info(ReconstructionMetricsLogger.result_to_string(train_metrics, "Train "))
-        logging.info(ReconstructionMetricsLogger.result_to_string(val_metrics, "Valid "))
+        logging.info(SegmentationMetricsLogger.result_to_string(train_metrics, "Train "))
+        logging.info(SegmentationMetricsLogger.result_to_string(val_metrics, "Valid "))
         logging.info("\n")
 
         if epoch - best_epoch >= args.patience:
