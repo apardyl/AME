@@ -70,7 +70,7 @@ def parse_args():
     parser.add_argument('--epochs',
                         help='number of epochs',
                         type=int,
-                        default=30)
+                        default=50)
     parser.add_argument('--num-samples',
                         help='number of images to sample in each training epoch',
                         type=int,
