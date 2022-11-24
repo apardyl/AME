@@ -74,7 +74,7 @@ def parse_args():
     parser.add_argument('--num-samples',
                         help='number of images to sample in each training epoch',
                         type=int,
-                        default=6000)
+                        default=20000)
     parser.add_argument('--clip',
                         help='gradient clipping',
                         type=float,

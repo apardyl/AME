@@ -21,8 +21,9 @@ class RandomSegMae(BaseArchitecture):
         del checkpoint['decoder_pred.bias']
         self.mae.load_state_dict(checkpoint, strict=False)
 
-        for p in self.mae.parameters():
-            p.requires_grad = False
+        for name, p in self.mae.named_parameters():
+            if "decoder" not in name and "mask_token" not in name:
+                p.requires_grad = False
         self.mae.decoder_pred = nn.Linear(512, 16 ** 2 * NUM_SEG_CLASSES, bias=True)
         self.num_glimpses = args.num_glimpses
         self.glimpse_selector = CheckerboardGlimpseSelector()

@@ -78,8 +78,7 @@ def main():
     # Initialize dataloaders
     train_dataset, valid_dataset = create_train_val_datasets(SegmentationDataset, TRAIN_SEG_PATH, VALID_SEG_PATH)
 
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=SegmentationDataset.custom_collate, num_workers=args.num_workers,
-                              sampler=RandomSampler(train_dataset, replacement=True, num_samples=args.num_samples))
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=SegmentationDataset.custom_collate, shuffle=True, num_workers=args.num_workers)
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=SegmentationDataset.custom_collate,
                               shuffle=False, num_workers=args.num_workers)
 
