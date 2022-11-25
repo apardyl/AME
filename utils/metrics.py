@@ -37,8 +37,8 @@ class ReconstructionMetricsLogger:
 
             rmse = torch.mean(torch.sqrt(torch.mean((reconstructed - target)**2, [1, 2, 3])))
             self.rmses.append(bsz * float(rmse))
-            tinas_stupid_metric = torch.mean(torch.sqrt(torch.sum((reconstructed - target) ** 2, 1)), [0, 1, 2])
-            self.tina.append(bsz * float(tinas_stupid_metric))
+            tina_metric = torch.mean(torch.sqrt(torch.sum((reconstructed - target) ** 2, 1)), [0, 1, 2])
+            self.tina.append(bsz * float(tina_metric))
 
             # Dump visualizations
             if self.visualizations_to_save > 0 and (self.mode == "valid" or self.mode == "test"):

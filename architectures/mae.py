@@ -279,6 +279,10 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
         return loss
 
+    @property
+    def last_attn(self):
+        return torch.stack([block.attn.last_attn for block in self.decoder_blocks], dim=0)
+
 
 def mae_vit_base_patch16_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(

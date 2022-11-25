@@ -15,6 +15,7 @@ class ReconstructionDataset(torch.utils.data.Dataset):
     def __init__(self, root_dir, transform=None):
         self.root_dir = root_dir
         self.transform = transform
+        self.data = os.listdir(root_dir)
 
     def __len__(self):
         return len(self.data)

@@ -3,9 +3,9 @@ import torch.nn as nn
 
 from torch.optim import Adam
 
-from architectures.mae_selectors import RandomGlimpseSelector, CheckerboardGlimpseSelector
+from architectures.selectors import RandomGlimpseSelector, CheckerboardGlimpseSelector, AttentionGlimpseSelector
 from architectures.utils import BaseArchitecture
-from config import IMG_SIZE, GLIMPSE_SIZE, GLIMPSES_W, GLIMPSES_H, NUM_SEG_CLASSES
+from config import GLIMPSES_W, GLIMPSES_H, NUM_SEG_CLASSES
 from architectures.mae import mae_vit_large_patch16
 from architectures.utils import WarmUpScheduler
 
@@ -26,7 +26,7 @@ class RandomSegMae(BaseArchitecture):
                 p.requires_grad = False
         self.mae.decoder_pred = nn.Linear(512, 16 ** 2 * NUM_SEG_CLASSES, bias=True)
         self.num_glimpses = args.num_glimpses
-        self.glimpse_selector = CheckerboardGlimpseSelector()
+        self.glimpse_selector = RandomGlimpseSelector()
 
         self.optimizer = Adam(self.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         self.lr_scheduler = WarmUpScheduler(self.optimizer, args.num_samples // args.batch_size, args.lr_decay)
@@ -64,3 +64,29 @@ class RandomSegMae(BaseArchitecture):
 
     def on_epoch_end(self):
         self.lr_scheduler.step_epoch()
+
+
+class CheckerboardSegMae(RandomSegMae):
+    def __init__(self, args):
+        super().__init__(args)
+        self.glimpse_selector = CheckerboardGlimpseSelector()
+
+
+class AttentionSegMae(RandomSegMae):
+    def __init__(self, args):
+        super().__init__(args)
+        self.glimpse_selector = AttentionGlimpseSelector()
+
+    def forward(self, x, target):
+        mask = torch.full((x.shape[0], GLIMPSES_W * GLIMPSES_H), fill_value=False, device=x.device)
+        mask_indices = torch.empty((x.shape[0], 0), dtype=torch.int64, device=x.device)
+        losses = []
+        with torch.no_grad():
+            latent = self.mae.forward_encoder(x, mask, mask_indices)
+            pred = self.mae.forward_decoder(latent, mask, mask_indices)
+        for i in range(self.num_glimpses):
+            mask, mask_indices = self.glimpse_selector(self.mae, mask, mask_indices, i)
+            latent = self.mae.forward_encoder(x, mask, mask_indices)
+            pred = self.mae.forward_decoder(latent, mask, mask_indices)
+            losses.append(self.mae.forward_seg_loss(pred, target, mask))
+        return {"out": pred, "mask": mask, "losses": losses}
