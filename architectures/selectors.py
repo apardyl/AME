@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import numpy as np
 from config import GLIMPSES_W, GLIMPSES_H
 
 
@@ -71,13 +71,15 @@ class AttentionGlimpseSelector(nn.Module):
             entropy = entropy.reshape(shape=(B, 1, h, w))
             next_mask = nn.functional.avg_pool2d(entropy, 3, 1, 1)
             del entropy
-            next_mask = nn.functional.softmax(next_mask.reshape(B, -1), dim=1)
-
+            # next_mask = nn.functional.softmax(next_mask.reshape(B, -1), dim=1)
+            next_mask[:, :, [0, -1]] = -1e8
+            next_mask[:, :, :, [0, -1]] = -1e8
+            next_mask = next_mask.reshape(B, -1)
             # select next glimpse
             next_mask[next_mask != next_mask.amax(1, keepdim=True)] = 0
             next_mask = next_mask.reshape(B, 1, h, w)
-            next_mask = (nn.functional.max_pool2d(next_mask, 3, 1, 1) <= 0).to(torch.float32)
-            next_mask = next_mask.reshape(B, -1) == 1
+            next_mask = nn.functional.max_pool2d(next_mask, 3, 1, 1) <= 0
+            next_mask = next_mask.reshape(B, -1)
 
             # Mask to indices
             cumsum = torch.cumsum(torch.ones_like(next_mask), dim=1) - 1
