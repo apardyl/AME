@@ -79,13 +79,13 @@ class BaseGlimpseMae(LightningModule, ABC):
     def training_step(self, batch, batch_idx):
         out = self.forward(batch)
         loss = out['loss']
-        self.log('train/iter_loss', self.train_loss(loss), on_step=True, on_epoch=True)
+        self.log('train/loss', self.train_loss(loss), on_step=True, on_epoch=True, sync_dist=True)
         self.train_log_metrics(out, batch)
         return loss
 
     def validation_step(self, batch, batch_idx):
         out = self.forward(batch)
-        self.log('val/iter_loss', self.val_loss(out['loss']), on_step=False, on_epoch=True)
+        self.log('val/loss', self.val_loss(out['loss']), on_step=False, on_epoch=True, sync_dist=True)
         self.val_log_metrics(out, batch)
 
     def configure_optimizers(self):

@@ -29,7 +29,7 @@ class ReconstructionDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         sample = self.data[index]
-        sample = Image.open(os.path.join(self.root_dir, sample))
+        sample = Image.open(os.path.join(self.root_dir, sample)).convert('RGB')
         if self.transform is not None:
             sample = self.transform(sample)
         return sample, torch.zeros(1)  # empty target for collate

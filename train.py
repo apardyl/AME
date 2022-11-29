@@ -5,6 +5,7 @@ import sys
 
 import torch
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.plugins import NativeMixedPrecisionPlugin
 from torch.cuda.amp import GradScaler
@@ -14,7 +15,6 @@ from config import TRAIN_PATH, VALID_PATH
 from data_utils.datasets import ReconstructionDataset, create_train_val_datasets
 from utils.train import parse_args, create_checkpoint_dir
 
-torch.set_printoptions(threshold=10_000)
 random.seed(1)
 torch.manual_seed(1)
 
@@ -56,7 +56,10 @@ def main():
 
     wandb_logger = WandbLogger(project='glimpse_mae', entity="ideas_cv", mode='disabled')
 
-    trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=wandb_logger)
+    checkpoint_callback = ModelCheckpoint(dirpath="checkpoints", save_top_k=3, monitor="val/loss")
+
+    trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=wandb_logger,
+                      callbacks=[checkpoint_callback])
 
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
 

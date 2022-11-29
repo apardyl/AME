@@ -31,9 +31,9 @@ class ReconstructionMae(BaseGlimpseMae):
             reconstructed = self.__rev_normalize(reconstructed)
             target = self.__rev_normalize(batch[0])
 
-            self.log('train/rmse', self.train_rmse(reconstructed, target), on_step=True, on_epoch=True)
+            self.log('train/rmse', self.train_rmse(reconstructed, target), on_step=True, on_epoch=True, sync_dist=True)
             tina_metric = torch.mean(torch.sqrt(torch.sum((reconstructed - target) ** 2, 1)), [0, 1, 2])
-            self.log('train/tina', self.train_tina(tina_metric), on_step=False, on_epoch=True)
+            self.log('train/tina', self.train_tina(tina_metric), on_step=False, on_epoch=True, sync_dist=True)
 
     def val_log_metrics(self, out, batch):
         with torch.no_grad():
@@ -41,9 +41,9 @@ class ReconstructionMae(BaseGlimpseMae):
             reconstructed = self.__rev_normalize(reconstructed)
             target = self.__rev_normalize(batch[0])
 
-            self.log('val/rmse', self.val_rmse(reconstructed, target), on_step=False, on_epoch=True)
+            self.log('val/rmse', self.val_rmse(reconstructed, target), on_step=False, on_epoch=True, sync_dist=True)
             tina_metric = torch.mean(torch.sqrt(torch.sum((reconstructed - target) ** 2, 1)), [0, 1, 2])
-            self.log('val/tina', self.val_tina(tina_metric), on_step=False, on_epoch=True)
+            self.log('val/tina', self.val_tina(tina_metric), on_step=False, on_epoch=True, sync_dist=True)
 
 
 class RandomMae(ReconstructionMae):
