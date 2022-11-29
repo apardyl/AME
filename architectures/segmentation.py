@@ -5,7 +5,7 @@ from torch.optim import Adam
 
 from architectures.selectors import RandomGlimpseSelector, CheckerboardGlimpseSelector, AttentionGlimpseSelector
 from architectures.utils import BaseArchitecture
-from config import GLIMPSES_W, GLIMPSES_H, NUM_SEG_CLASSES
+from config import GLIMPSES_W, GLIMPSES_H, NUM_SEG_CLASSES, IMG_SIZE
 from architectures.mae import mae_vit_large_patch16
 from architectures.utils import WarmUpScheduler
 
@@ -13,7 +13,7 @@ from architectures.utils import WarmUpScheduler
 class RandomSegMae(BaseArchitecture):
     def __init__(self, args):
         super().__init__()
-        self.mae = mae_vit_large_patch16(out_chans=NUM_SEG_CLASSES)
+        self.mae = mae_vit_large_patch16(out_chans=NUM_SEG_CLASSES, img_size=(IMG_SIZE[1], IMG_SIZE[0]))
         checkpoint = torch.load("architectures/mae_vit_l_128x256.pth", map_location='cpu')["model"]
         del checkpoint['pos_embed']
         del checkpoint['decoder_pos_embed']
@@ -37,7 +37,7 @@ class RandomSegMae(BaseArchitecture):
         losses = []
         for i in range(self.num_glimpses):
             mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
-            latent = self.mae.forward_encoder(x, mask, mask_indices)
+            latent = self.mae.forward_encoder(x, mask_indices)
             pred = self.mae.forward_decoder(latent, mask, mask_indices)
             losses.append(self.mae.forward_seg_loss(pred, target, mask))
         return {"out": pred, "mask": mask, "losses": losses}
@@ -82,11 +82,11 @@ class AttentionSegMae(RandomSegMae):
         mask_indices = torch.empty((x.shape[0], 0), dtype=torch.int64, device=x.device)
         losses = []
         with torch.no_grad():
-            latent = self.mae.forward_encoder(x, mask, mask_indices)
+            latent = self.mae.forward_encoder(x, mask_indices)
             pred = self.mae.forward_decoder(latent, mask, mask_indices)
         for i in range(self.num_glimpses):
             mask, mask_indices = self.glimpse_selector(self.mae, mask, mask_indices, i)
-            latent = self.mae.forward_encoder(x, mask, mask_indices)
+            latent = self.mae.forward_encoder(x, mask_indices)
             pred = self.mae.forward_decoder(latent, mask, mask_indices)
             losses.append(self.mae.forward_seg_loss(pred, target, mask))
         return {"out": pred, "mask": mask, "losses": losses}

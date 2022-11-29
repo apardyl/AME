@@ -1,10 +1,11 @@
 import argparse
 import os
 import time
+from pathlib import Path
+
 import torch
 
-from pathlib import Path
-from architectures.utils import add_arch_args
+import architectures
 
 
 def dict_to_device(d: dict, device):
@@ -46,7 +47,7 @@ def parse_args():
     Parse arguments and modify them if needed
     Returns: args (Namespace)
     """
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--checkpoint-dir',
                         help='directory where models will be saved and loaded from',
                         type=str,
@@ -106,7 +107,7 @@ def parse_args():
     parser.add_argument('--arch',
                         help='architecture name',
                         type=str,
-                        default="recurrent")
+                        default="RandomMae")
     parser.add_argument('--test',
                         help='test model',
                         action='store_true',
@@ -123,7 +124,13 @@ def parse_args():
                         help='early stop training if valid performance doesn’t improve for N consecutive validation runs',
                         type=int,
                         default=10)
-    parser, arch = add_arch_args(parser)
+
     args = parser.parse_args()
+
+    arch = getattr(architectures, args.arch)
+    if arch is None:
+        raise RuntimeError(f"Wrong architecture provided. Possible architectures: {archs.keys()}")
+
     args.arch = arch
+
     return args

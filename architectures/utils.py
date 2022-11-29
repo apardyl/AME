@@ -1,56 +1,16 @@
-import inspect
-import os
-import sys
-from abc import ABC, abstractmethod
+from abc import ABC
 
+import pytorch_lightning
 import torch
 import torch.nn as nn
 
 
-class BaseArchitecture(nn.Module, ABC):
+class BaseArchitecture(pytorch_lightning.LightningModule, ABC):
     """ Each architecture should be a subclass of this class and implement abstract methods in order
-    to work with this template. Architecture should consist of a neural model, criterion, optimizer
-    and its scheduler. Use on epoch/iter funcs to update scheduler over the course of training and to
-    log stats."""
+    to work with this template. Standard pytorch lightning methodology applies"""
 
     def __init__(self):
         super().__init__()
-
-    @staticmethod
-    @abstractmethod
-    def add_args(parser):
-        pass
-
-    @abstractmethod
-    def calculate_loss(self, out, target):
-        pass
-
-    def on_epoch_end(self):
-        pass
-
-    def on_iter_end(self):
-        pass
-
-
-def add_arch_args(parser):
-    """ Iterate over all architectures in architectures dir, find the one the user provided in args and add architecture's
-    args to the parser"""
-
-    archs = {}
-    for module in os.listdir(os.path.dirname(__file__)):
-        if module == '__init__.py' or module == 'utils.py' or module[-3:] != '.py':
-            continue
-        module = f"architectures.{module}" if "architectures." not in module else module  # TODO: refactor this
-        __import__(module[:-3], locals(), globals())
-        for name, obj in inspect.getmembers(sys.modules[module[:-3]]):
-            if inspect.isclass(obj) and hasattr(obj, "add_args") and callable(
-                    getattr(obj, "add_args")) and obj.__name__ != "BaseArchitecture":
-                archs[name] = obj
-    known_args = parser.parse_known_args()[0]
-    if known_args.arch not in archs.keys():
-        raise RuntimeError(f"Wrong architecture provided. Possible architectures: {archs.keys()}")
-    archs[known_args.arch].add_args(parser)
-    return parser, archs[known_args.arch]
 
 
 class WarmUpScheduler(nn.Module):
