@@ -32,7 +32,7 @@ class ReconstructionMetricsLogger:
             # Paste ground truth glimpses into reconstructed image
             reconstructed_pasted = reconstructed.clone()
             a = patchify(reconstructed_pasted)
-            a[output["mask"], :] = patchify(target)[output["mask"], :]
+            a[output["mask"], :] = patchify(target)[output["mask"].cpu(), :]
             reconstructed_pasted = unpatchify(a)
 
             rmse = torch.mean(torch.sqrt(torch.mean((reconstructed - target)**2, [1, 2, 3])))

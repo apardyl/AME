@@ -1,20 +1,19 @@
+import logging
 import os
 import random
 import sys
 import time
-import torch
-import logging
 
-from config import TRAIN_SEG_PATH, VALID_SEG_PATH
-from utils.metrics import SegmentationMetricsLogger
-from torch.utils.data import DataLoader, RandomSampler
+import torch
 from torch.cuda.amp import autocast, GradScaler
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
+from config import TRAIN_SEG_PATH, VALID_SEG_PATH
 from data_utils.datasets import SegmentationDataset, create_train_val_datasets
+from utils.metrics import SegmentationMetricsLogger
 from utils.train import parse_args, epoch_time, save_model, create_checkpoint_dir, dict_to_device
-
 
 torch.set_printoptions(threshold=10_000)
 random.seed(1)

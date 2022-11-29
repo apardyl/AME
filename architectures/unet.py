@@ -6,7 +6,6 @@ from torchvision.transforms import CenterCrop
 
 from architectures.utils import BaseArchitecture
 from config import IMG_SIZE
-from criterions.focal_loss import FocalLoss
 
 
 class Block(nn.Module):

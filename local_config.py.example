@@ -1,0 +1,5 @@
+# Overriders config.py
+
+TRAIN_PATH = "datasets/train/train2014/"
+VALID_PATH = "datasets/val2014"
+TEST_PATH = "datasets/test2014"

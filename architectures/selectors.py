@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import numpy as np
+
 from config import GLIMPSES_W, GLIMPSES_H
 
 
