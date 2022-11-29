@@ -1,14 +1,22 @@
+import abc
+
 import torch
 import torch.nn as nn
 
 from config import GLIMPSES_W, GLIMPSES_H
 
 
-class RandomGlimpseSelector(nn.Module):
+class BaseGlimpseSelector(nn.Module):
+    @abc.abstractmethod
+    def forward(self, mae, current_mask, mask_indices, glimpse_num):
+        raise NotImplemented()
+
+
+class RandomGlimpseSelector(BaseGlimpseSelector):
     def __init__(self):
         super().__init__()
 
-    def forward(self, mask, mask_indices, glimpse_num):
+    def forward(self, mae, mask, mask_indices, glimpse_num):
         """True in mask represents patches kept, False removed"""
         N, L = mask.shape
         new_glimpse_x = torch.randint(0, GLIMPSES_W - 2, size=(N, 1), device=mask.device)
@@ -17,19 +25,19 @@ class RandomGlimpseSelector(nn.Module):
         glimpses = glimpses.repeat(1, 3)
         glimpses[:, 1] += 1
         glimpses[:, 2] += 2
-        glimpses = torch.cat((glimpses, glimpses + GLIMPSES_W, glimpses + 2*GLIMPSES_W), dim=1)
+        glimpses = torch.cat((glimpses, glimpses + GLIMPSES_W, glimpses + 2 * GLIMPSES_W), dim=1)
         mask = mask.scatter(1, glimpses, torch.full_like(mask, fill_value=True))
         mask_indices = torch.cat((mask_indices, glimpses), dim=1)
         return mask, mask_indices
 
 
-class CheckerboardGlimpseSelector(nn.Module):
+class CheckerboardGlimpseSelector(BaseGlimpseSelector):
     def __init__(self):
         super().__init__()
         self.coordinates = [(1, 1), (5, 1), (9, 1), (13, 1),
                             (1, 5), (5, 5), (9, 5), (13, 5)]
 
-    def forward(self, mask, mask_indices, glimpse_num):
+    def forward(self, mae, mask, mask_indices, glimpse_num):
         N, L = mask.shape
         to_take = self.coordinates[glimpse_num]
         new_glimpse_x = torch.full((N, 1), fill_value=to_take[0], device=mask.device)
@@ -38,18 +46,18 @@ class CheckerboardGlimpseSelector(nn.Module):
         glimpses = glimpses.repeat(1, 3)
         glimpses[:, 1] += 1
         glimpses[:, 2] += 2
-        glimpses = torch.cat((glimpses, glimpses + GLIMPSES_W, glimpses + 2*GLIMPSES_W), dim=1)
+        glimpses = torch.cat((glimpses, glimpses + GLIMPSES_W, glimpses + 2 * GLIMPSES_W), dim=1)
         mask.scatter_(1, glimpses, torch.full_like(mask, fill_value=True))
         mask_indices = torch.cat((mask_indices, glimpses), dim=1)
 
         return mask, mask_indices
 
 
-class AttentionGlimpseSelector(nn.Module):
+class AttentionGlimpseSelector(BaseGlimpseSelector):
     def __init__(self):
         super().__init__()
 
-    def forward(self, mae, current_mask, mask_indices, i):
+    def forward(self, mae, current_mask, mask_indices, glimpse_num):
         with torch.no_grad():
             current_mask = ~current_mask
             # get self attention weights

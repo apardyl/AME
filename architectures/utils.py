@@ -1,16 +1,5 @@
-from abc import ABC
-
-import pytorch_lightning
 import torch
 import torch.nn as nn
-
-
-class BaseArchitecture(pytorch_lightning.LightningModule, ABC):
-    """ Each architecture should be a subclass of this class and implement abstract methods in order
-    to work with this template. Standard pytorch lightning methodology applies"""
-
-    def __init__(self):
-        super().__init__()
 
 
 class WarmUpScheduler(nn.Module):
@@ -20,12 +9,13 @@ class WarmUpScheduler(nn.Module):
 
     def __init__(self, optimizer, warm_up_iters=0, lr_decay=0.97):
         super().__init__()
+        self.optimizer = optimizer
         self.total_steps, self.warm_up_iters = 0, warm_up_iters
         self.warmup_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, 1e-6,
                                                                   total_iters=warm_up_iters) if warm_up_iters else None
         self.decay_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay, last_epoch=-1)
 
-    def step_iter(self):
+    def step(self):
         self.total_steps += 1
         if self.warmup_scheduler:
             self.warmup_scheduler.step()

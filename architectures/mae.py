@@ -222,6 +222,13 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
         return loss
 
+    def reconstruct(self, pred, target, mask):
+        with torch.no_grad():
+            pred_img = pred.detach().clone()
+            pred_img[mask, :] = self.patchify(target)[mask, :]
+            pred_img = self.unpatchify(pred_img)
+            return pred_img
+
     @property
     def last_attn(self):
         return torch.stack([block.attn.last_attn for block in self.decoder_blocks], dim=0)
