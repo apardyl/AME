@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torchmetrics
 
-from architectures import BaseGlimpseMae
+from architectures.glimpse_mae import BaseGlimpseMae
 from architectures.selectors import RandomGlimpseSelector, CheckerboardGlimpseSelector, AttentionGlimpseSelector
 from config import NUM_SEG_CLASSES
 
