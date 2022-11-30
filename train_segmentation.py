@@ -2,59 +2,22 @@ import logging
 import os
 import random
 import sys
-import time
 
 import torch
-from torch.cuda.amp import autocast, GradScaler
+import wandb
+from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.plugins import NativeMixedPrecisionPlugin
+from torch.cuda.amp import GradScaler
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
 
 from config import TRAIN_SEG_PATH, VALID_SEG_PATH
 from data_utils.datasets import SegmentationDataset, create_train_val_datasets
-from utils.metrics import SegmentationMetricsLogger
-from utils.train import parse_args, epoch_time, save_model, create_checkpoint_dir, dict_to_device
+from utils.train import parse_args, create_checkpoint_dir
 
-torch.set_printoptions(threshold=10_000)
 random.seed(1)
 torch.manual_seed(1)
-
-
-def train_epoch(train_loader, device, model, epoch, args, grad_scaler):
-    metrics_logger = SegmentationMetricsLogger(epoch, "train", args)
-    model.train()
-    for batch in tqdm(train_loader, desc="epoch"):
-        dict_to_device(batch, device)
-
-        model.optimizer.zero_grad()
-        with autocast(enabled=args.use_fp16):
-            out = model(batch["image"], batch["target"])
-            loss, loss_dict = model.calculate_loss(out, batch)
-        if args.use_fp16:
-            grad_scaler.scale(loss).backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-            grad_scaler.step(model.optimizer)
-            grad_scaler.update()
-        else:
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-            model.optimizer.step()
-        metrics_logger.log(out, batch, loss_dict)
-        model.on_iter_end()
-    return metrics_logger
-
-
-def eval_epoch(loader, device, model, epoch, args):
-    metrics_logger = SegmentationMetricsLogger(epoch, "valid", args)
-    model.eval()
-    with torch.no_grad():
-        for batch in tqdm(loader, desc="epoch"):
-            dict_to_device(batch, device)
-            with autocast(enabled=args.use_fp16):
-                out = model(batch["image"], batch["target"])
-                loss, loss_dict = model.calculate_loss(out, batch)
-            metrics_logger.log(out, batch, loss_dict)
-    return metrics_logger
 
 
 def main():
@@ -64,56 +27,42 @@ def main():
 
     logging.basicConfig(level=logging.INFO, filename=os.path.join(args.checkpoint_dir, "log.txt"))
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+    logging.info((vars(args)))
 
     # Load model
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = args.arch(args).to(device)
+    model = args.arch(args)
+    model.load_pretrained_mae(segmentation=True)
     if args.load_model_path:
         model.load_state_dict(torch.load(args.load_model_path))
 
-    grad_scaler = GradScaler()
+    logging.info(model)
+    logging.info(
+        f'The model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters\n')
+    logging.info(
+        f'The model has {sum(p.numel() for p in model.parameters() if not p.requires_grad):,} frozen parameters\n')
 
     # Initialize dataloaders
     train_dataset, valid_dataset = create_train_val_datasets(SegmentationDataset, TRAIN_SEG_PATH, VALID_SEG_PATH)
 
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=SegmentationDataset.custom_collate, shuffle=True, num_workers=args.num_workers)
-    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=SegmentationDataset.custom_collate,
-                              shuffle=False, num_workers=args.num_workers)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
-    logging.info((vars(args)))
     logging.info("Loaded {} train samples".format(len(train_dataset)))
     logging.info("Loaded {} valid samples".format(len(valid_dataset)))
-    logging.info(model)
-    logging.info(f'The model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters\n')
-    logging.info(f'The model has {sum(p.numel() for p in model.parameters() if not p.requires_grad):,} frozen parameters\n')
 
-    tb_writer = SummaryWriter(args.checkpoint_dir)
-    tb_writer.add_text("args", str(args))
-    best_val_metric, best_epoch = 0, 0
-    for epoch in range(args.epochs):
-        start_time = time.time()
+    plugins = []
+    if args.use_fp16:
+        grad_scaler = GradScaler()
+        plugins += [NativeMixedPrecisionPlugin(precision=16, device='cuda', scaler=grad_scaler)]
 
-        train_metrics = train_epoch(train_loader, device, model, epoch, args, grad_scaler).get_epoch_result(tb_writer)
-        val_metrics = eval_epoch(valid_loader, device, model, epoch, args).get_epoch_result(tb_writer)
+    wandb_logger = WandbLogger(project='glimpse_seg_mae', entity="ideas_cv")
 
-        save_model(model, args.checkpoint_dir, val_metrics["mAP"] > best_val_metric)
-        if val_metrics["mAP"] > best_val_metric:
-            best_val_metric = val_metrics["mAP"]
-            best_epoch = epoch
+    checkpoint_callback = ModelCheckpoint(dirpath=f"checkpoints/{wandb.run.name}", save_top_k=3, monitor="val/loss")
 
-        epoch_mins, epoch_secs = epoch_time(start_time, time.time())
-        model.on_epoch_end()
+    trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=wandb_logger,
+                      callbacks=[checkpoint_callback])
 
-        logging.info('Epoch: {} | Time: {}m {}s'.format(epoch, epoch_mins, epoch_secs))
-        logging.info(SegmentationMetricsLogger.result_to_string(train_metrics, "Train "))
-        logging.info(SegmentationMetricsLogger.result_to_string(val_metrics, "Valid "))
-        logging.info("\n")
-
-        if epoch - best_epoch >= args.patience:
-            logging.info("Early stopping")
-            break
-
-    logging.info(f"Best epoch: {best_epoch}")
+    trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
 
 
 if __name__ == "__main__":

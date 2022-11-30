@@ -13,10 +13,10 @@ from config import GLIMPSES_W, GLIMPSES_H, IMG_SIZE
 
 
 class BaseGlimpseMae(LightningModule, ABC):
-    def __init__(self, args: Any, glimpse_selector=None):
+    def __init__(self, args: Any, glimpse_selector=None, out_chans=3):
         super().__init__()
 
-        self.mae = mae_vit_large_patch16(img_size=IMG_SIZE)
+        self.mae = mae_vit_large_patch16(img_size=IMG_SIZE, out_chans=out_chans)
 
         self.train_loss = torchmetrics.MeanMetric()
         self.val_loss = torchmetrics.MeanMetric()

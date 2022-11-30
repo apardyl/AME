@@ -4,6 +4,7 @@ import random
 import sys
 
 import torch
+import wandb
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
@@ -22,11 +23,11 @@ torch.manual_seed(1)
 def main():
     # Parse args and prepare logger
     args = parse_args()
-    logging.info((vars(args)))
     args.checkpoint_dir = create_checkpoint_dir(args.checkpoint_dir)
 
     logging.basicConfig(level=logging.INFO, filename=os.path.join(args.checkpoint_dir, "log.txt"))
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+    logging.info((vars(args)))
 
     model = args.arch(args)
     model.load_pretrained_mae()
@@ -54,9 +55,9 @@ def main():
         grad_scaler = GradScaler()
         plugins += [NativeMixedPrecisionPlugin(precision=16, device='cuda', scaler=grad_scaler)]
 
-    wandb_logger = WandbLogger(project='glimpse_mae', entity="ideas_cv", mode='disabled')
+    wandb_logger = WandbLogger(project='glimpse_mae', entity="ideas_cv", reinit=True)
 
-    checkpoint_callback = ModelCheckpoint(dirpath="checkpoints", save_top_k=3, monitor="val/loss")
+    checkpoint_callback = ModelCheckpoint(dirpath=f"checkpoints/{wandb.run.name}", save_top_k=3, monitor="val/loss")
 
     trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=wandb_logger,
                       callbacks=[checkpoint_callback])

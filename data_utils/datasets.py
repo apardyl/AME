@@ -48,13 +48,9 @@ class SegmentationDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         image_id = self.images[index]
-        image = Image.open(os.path.join(self.root_dir, "images", image_id))
-        image = image.resize(IMG_SIZE)
-        image = torch.tensor(np.array(image), dtype=torch.float32)
-        # Deal with grayscale images and permute to CxHxW order
-        if len(image.shape) < 3:
-            image = image.unsqueeze(2).expand((*image.shape, 3))
-        image = image.permute(2, 0, 1)
+        image = Image.open(os.path.join(self.root_dir, "images", image_id)).convert('RGB')
+        if self.transform is not None:
+            image = self.transform(image)
 
         mask = Image.open(os.path.join(self.root_dir, "masks", image_id.replace(".jpg", ".png")))
         mask = mask.resize(IMG_SIZE, resample=PIL.Image.NEAREST)

@@ -212,6 +212,11 @@ class MaskedAutoencoderViT(nn.Module):
             pred_img = self.unpatchify(pred_img)
             return pred_img
 
+    def segmentation_output(self, pred):
+        with torch.no_grad():
+            pred = self.unpatchify(pred)
+            return torch.argmax(pred, dim=1)
+
     @property
     def last_attn(self):
         return torch.stack([block.attn.last_attn for block in self.decoder_blocks], dim=0)
