@@ -32,7 +32,7 @@ class ReconstructionDataset(torch.utils.data.Dataset):
         sample = Image.open(os.path.join(self.root_dir, sample)).convert('RGB')
         if self.transform is not None:
             sample = self.transform(sample)
-        return sample, torch.zeros(1)  # empty target for collate
+        return sample, torch.zeros(1)  # empty
 
 
 class SegmentationDataset(torch.utils.data.Dataset):
@@ -64,9 +64,3 @@ class SegmentationDataset(torch.utils.data.Dataset):
             mask = self.target_transform(mask)
 
         return image, mask
-
-
-def create_train_val_datasets(dataset_class, train_path, valid_path, **kwargs):
-    train_ds = dataset_class(train_path, **kwargs)
-    valid_ds = dataset_class(valid_path, **kwargs)
-    return train_ds, valid_ds

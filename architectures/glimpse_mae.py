@@ -24,9 +24,32 @@ class BaseGlimpseMae(LightningModule, ABC):
         self.num_glimpses = args.num_glimpses
         self.lr = args.lr
         self.weight_decay = args.weight_decay
-        self.warm_up_iters = args.num_samples // args.batch_size
+        self.warm_up_iters = args.num_samples // args.train_batch_size  # TODO(apardyl): remove references to data params
         self.lr_decay = args.lr_decay
         self.glimpse_selector = glimpse_selector
+
+        self.save_hyperparameters(ignore=['glimpse_selector'])
+
+    @classmethod
+    def add_argparse_args(cls, parent_parser):
+        parser = parent_parser.add_argument_group(cls.__name__)
+        parser.add_argument('--lr',
+                            help='learning_rate',
+                            type=float,
+                            default=1e-4)
+        parser.add_argument('--lr-decay',
+                            help='learning rate decay each epoch',
+                            type=float,
+                            default=0.97)
+        parser.add_argument('--weight-decay',
+                            help='weight_decay',
+                            type=float,
+                            default=0)
+        parser.add_argument('--num-glimpses',
+                            help='number of glimpses to take',
+                            type=int,
+                            default=8)
+        return parent_parser
 
     def load_pretrained_mae(self, path="architectures/mae_vit_l_128x256.pth", segmentation=False):
         checkpoint = torch.load(path, map_location='cpu')["model"]

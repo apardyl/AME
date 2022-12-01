@@ -3,7 +3,7 @@ import torchmetrics
 
 from architectures.glimpse_mae import BaseGlimpseMae
 from architectures.selectors import RandomGlimpseSelector, CheckerboardGlimpseSelector, AttentionGlimpseSelector
-from data_utils.datasets import IMAGENET_STD, IMAGENET_MEAN
+from datasets.utils import IMAGENET_MEAN, IMAGENET_STD
 
 
 class ReconstructionMae(BaseGlimpseMae):
