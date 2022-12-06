@@ -11,6 +11,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from pytorch_lightning.plugins import NativeMixedPrecisionPlugin
+from pytorch_lightning.strategies import DDPStrategy
 from torch.cuda.amp import GradScaler
 
 import architectures
@@ -66,10 +67,11 @@ def main():
                         type=bool,
                         default=False,
                         action=argparse.BooleanOptionalAction)
-    parser.add_argument('--strategy',
-                        help='training acceleration strategy',
+    parser.add_argument('--ddp',
+                        help='use DDP acceleration strategy',
                         type=str,
-                        default=None)
+                        default=False,
+                        action=argparse.BooleanOptionalAction)
 
     args = parser.parse_args(sys.argv[3:])
 
@@ -102,7 +104,8 @@ def main():
     checkpoint_callback = ModelCheckpoint(dirpath=f"checkpoints/{run_name}", save_top_k=3, monitor="val/loss")
 
     trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=loggers,
-                      callbacks=[checkpoint_callback], strategy=args.strategy)
+                      callbacks=[checkpoint_callback],
+                      strategy=DDPStrategy(find_unused_parameters=False) if args.ddp else None)
 
     trainer.fit(model=model, datamodule=data_module)
 
