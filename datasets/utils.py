@@ -5,11 +5,22 @@ import numpy as np
 import torchvision.transforms
 
 from torch.utils.data import Dataset
+from torchvision.transforms import RandomResizedCrop, RandomHorizontalFlip, Resize, ToTensor, Normalize, \
+    InterpolationMode
+
 from config import IMG_SIZE
 from PIL import Image
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
+
+DEFAULT_AUG_IMG_TRANSFORM = torchvision.transforms.Compose([
+    RandomResizedCrop(IMG_SIZE, scale=(0.2, 1.0), interpolation=InterpolationMode.BICUBIC),
+    RandomHorizontalFlip(),
+    Resize(IMG_SIZE),
+    ToTensor(),
+    Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+])
 
 DEFAULT_IMG_TRANSFORM = torchvision.transforms.Compose([
     torchvision.transforms.Resize(IMG_SIZE),

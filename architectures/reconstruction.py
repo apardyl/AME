@@ -41,8 +41,7 @@ class ReconstructionMae(BaseGlimpseMae):
             mask_neg = ~out['mask']
             self.log('train/rmse_masked',
                      self.train_rmse_masked(self.mae.patchify(reconstructed)[mask_neg, :],
-                                            self.mae.patchify(target)[mask_neg, :]),
-                     on_step=False, on_epoch=True, sync_dist=True)
+                                            self.mae.patchify(target)[mask_neg, :]), on_step=True, on_epoch=True)
 
     def val_log_metrics(self, out, batch):
         with torch.no_grad():

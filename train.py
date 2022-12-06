@@ -80,7 +80,6 @@ def main():
     if args.load_model_path:
         model.load_state_dict(torch.load(args.load_model_path))
 
-    print(model)
     print(
         f'The model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters\n')
     print(

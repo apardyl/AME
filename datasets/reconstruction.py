@@ -7,7 +7,7 @@ from pytorch_lightning import LightningDataModule
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import DataLoader, RandomSampler
 
-from datasets.utils import ReconstructionDataset
+from datasets.utils import ReconstructionDataset, DEFAULT_AUG_IMG_TRANSFORM
 
 
 class BaseReconstructionDataModule(LightningDataModule, abc.ABC):
@@ -58,7 +58,7 @@ class BaseReconstructionDataModule(LightningDataModule, abc.ABC):
 
     def setup(self, stage: Optional[str] = None) -> None:
         if stage == 'fit':
-            self.train_dataset = ReconstructionDataset(root_dir=self.train_dir)
+            self.train_dataset = ReconstructionDataset(root_dir=self.train_dir, transform=DEFAULT_AUG_IMG_TRANSFORM)
             print(f'Loaded {len(self.train_dataset)} train samples')
             self.val_dataset = ReconstructionDataset(root_dir=self.val_dir)
             print(f'Loaded {len(self.val_dataset)} val samples')
