@@ -69,7 +69,7 @@ def main():
                         action=argparse.BooleanOptionalAction)
     parser.add_argument('--ddp',
                         help='use DDP acceleration strategy',
-                        type=str,
+                        type=bool,
                         default=False,
                         action=argparse.BooleanOptionalAction)
 

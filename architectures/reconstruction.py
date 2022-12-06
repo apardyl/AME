@@ -29,10 +29,9 @@ class ReconstructionMae(BaseGlimpseMae):
 
     def train_log_metrics(self, out, batch):
         with torch.no_grad():
-            target = self.__rev_normalize(batch[0])
-
-            reconstructed = self.mae.reconstruct(out['out'], target, out['mask'])
+            reconstructed = self.mae.reconstruct(out['out'], batch[0], out['mask'])
             reconstructed = self.__rev_normalize(reconstructed)
+            target = self.__rev_normalize(batch[0])
 
             self.log('train/rmse_overall', self.train_rmse_overall(reconstructed, target), on_step=True, on_epoch=True)
             tina_metric = torch.mean(torch.sqrt(torch.sum((reconstructed - target) ** 2, 1)), [0, 1, 2])
@@ -45,10 +44,9 @@ class ReconstructionMae(BaseGlimpseMae):
 
     def val_log_metrics(self, out, batch):
         with torch.no_grad():
-            target = self.__rev_normalize(batch[0])
-
-            reconstructed = self.mae.reconstruct(out['out'], target, out['mask'])
+            reconstructed = self.mae.reconstruct(out['out'], batch[0], out['mask'])
             reconstructed = self.__rev_normalize(reconstructed)
+            target = self.__rev_normalize(batch[0])
 
             self.log('val/rmse_overall', self.val_rmse_overall(reconstructed, target), on_step=False, on_epoch=True,
                      sync_dist=True)
