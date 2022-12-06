@@ -1,6 +1,5 @@
 import argparse
 import inspect
-import logging
 import platform
 import random
 import sys
@@ -81,10 +80,10 @@ def main():
     if args.load_model_path:
         model.load_state_dict(torch.load(args.load_model_path))
 
-    logging.info(model)
-    logging.info(
+    print(model)
+    print(
         f'The model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters\n')
-    logging.info(
+    print(
         f'The model has {sum(p.numel() for p in model.parameters() if not p.requires_grad):,} frozen parameters\n')
 
     plugins = []
@@ -93,13 +92,13 @@ def main():
         plugins += [NativeMixedPrecisionPlugin(precision=16, device='cuda', scaler=grad_scaler)]
 
     run_name = f'{time.strftime("%Y-%m-%d_%H:%M:%S")}-{platform.node()}'
-    logging.info('Run name:', run_name)
+    print('Run name:', run_name)
 
     loggers = []
     if args.tensorboard:
         loggers.append(TensorBoardLogger(save_dir='logs/', name=run_name))
     if args.wandb:
-        loggers.append(WandbLogger(project='glimpse_mae', entity="ideas_cv", mode='disabled', name=run_name))
+        loggers.append(WandbLogger(project='glimpse_mae', entity="ideas_cv", name=run_name))
 
     checkpoint_callback = ModelCheckpoint(dirpath=f"checkpoints/{run_name}", save_top_k=3, monitor="val/loss")
 
