@@ -1,20 +1,21 @@
 import argparse
 import inspect
 import logging
+import platform
 import random
 import sys
+import time
 
 import pytorch_lightning
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from pytorch_lightning.plugins import NativeMixedPrecisionPlugin
 from torch.cuda.amp import GradScaler
 
 import architectures
 import datasets
-import wandb
 
 random.seed(1)
 torch.manual_seed(1)
@@ -56,6 +57,20 @@ def main():
                         help='load model from pth',
                         type=str,
                         default=None)
+    parser.add_argument('--wandb',
+                        help='log to wandb',
+                        type=bool,
+                        default=True,
+                        action=argparse.BooleanOptionalAction)
+    parser.add_argument('--tensorboard',
+                        help='log to tensorboard',
+                        type=bool,
+                        default=False,
+                        action=argparse.BooleanOptionalAction)
+    parser.add_argument('--strategy',
+                        help='training acceleration strategy',
+                        type=str,
+                        default=None)
 
     args = parser.parse_args(sys.argv[3:])
 
@@ -77,12 +92,19 @@ def main():
         grad_scaler = GradScaler()
         plugins += [NativeMixedPrecisionPlugin(precision=16, device='cuda', scaler=grad_scaler)]
 
-    wandb_logger = WandbLogger(project='glimpse_mae', entity="ideas_cv", reinit=True)
+    run_name = f'{time.strftime("%Y-%m-%d_%H:%M:%S")}-{platform.node()}'
+    logging.info('Run name:', run_name)
 
-    checkpoint_callback = ModelCheckpoint(dirpath=f"checkpoints/{wandb.run.name}", save_top_k=3, monitor="val/loss")
+    loggers = []
+    if args.tensorboard:
+        loggers.append(TensorBoardLogger(save_dir='logs/', name=run_name))
+    if args.wandb:
+        loggers.append(WandbLogger(project='glimpse_mae', entity="ideas_cv", mode='disabled', name=run_name))
 
-    trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=wandb_logger,
-                      callbacks=[checkpoint_callback])
+    checkpoint_callback = ModelCheckpoint(dirpath=f"checkpoints/{run_name}", save_top_k=3, monitor="val/loss")
+
+    trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=loggers,
+                      callbacks=[checkpoint_callback], strategy=args.strategy)
 
     trainer.fit(model=model, datamodule=data_module)
 

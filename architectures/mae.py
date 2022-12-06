@@ -178,7 +178,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x
 
-    def forward_loss(self, imgs, pred, mask):
+    def forward_loss(self, imgs, pred, mask=None):
         """
         imgs: [N, 3, H, W]
         pred: [N, L, p*p*3]
@@ -193,16 +193,21 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (pred - target) ** 2
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
-        mask_neg = ~mask
-        loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
+        if mask is not None:
+            mask_neg = ~mask
+            loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
+
         return loss
 
-    def forward_seg_loss(self, pred, target, mask):
-        mask_neg = ~mask.unsqueeze(2)
+    def forward_seg_loss(self, pred, target, mask=None):
+
         pred = self.unpatchify(pred)
         loss = nn.functional.cross_entropy(pred, target, reduction="none").unsqueeze(1)
         loss = self.patchify(loss)
-        loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
+        if mask is not None:
+            mask_neg = ~mask.unsqueeze(2)
+            loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
+
         return loss
 
     def reconstruct(self, pred, target, mask):

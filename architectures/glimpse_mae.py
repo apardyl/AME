@@ -1,4 +1,5 @@
 import abc
+import argparse
 from abc import ABC
 from typing import Optional, Any
 
@@ -26,6 +27,7 @@ class BaseGlimpseMae(LightningModule, ABC):
         self.weight_decay = args.weight_decay
         self.warm_up_iters = args.num_samples // args.train_batch_size  # TODO(apardyl): remove references to data params
         self.lr_decay = args.lr_decay
+        self.masked_loss = args.masked_loss
         self.glimpse_selector = glimpse_selector
 
         self.save_hyperparameters(ignore=['glimpse_selector'])
@@ -49,6 +51,11 @@ class BaseGlimpseMae(LightningModule, ABC):
                             help='number of glimpses to take',
                             type=int,
                             default=8)
+        parser.add_argument('--masked_loss',
+                            help='calculate loss only for masked patches',
+                            type=bool,
+                            default=True,
+                            action=argparse.BooleanOptionalAction)
         return parent_parser
 
     def load_pretrained_mae(self, path="architectures/mae_vit_l_128x256.pth", segmentation=False):
@@ -102,7 +109,7 @@ class BaseGlimpseMae(LightningModule, ABC):
     def training_step(self, batch, batch_idx):
         out = self.forward(batch)
         loss = out['loss']
-        self.log('train/loss', self.train_loss(loss), on_step=True, on_epoch=True, sync_dist=True)
+        self.log('train/loss', self.train_loss(loss), on_step=True, on_epoch=True, prog_bar=True)
         self.train_log_metrics(out, batch)
         return loss
 

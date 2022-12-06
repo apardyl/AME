@@ -15,7 +15,7 @@ class SegmentationMae(BaseGlimpseMae):
         self.val_mAP = torchmetrics.AveragePrecision(num_classes=NUM_SEG_CLASSES, average='macro', task='multilabel')
 
     def calculate_loss_one(self, pred, mask, batch):
-        return self.mae.forward_seg_loss(pred, batch[1], mask)
+        return self.mae.forward_seg_loss(pred, batch[1], mask if self.masked_loss else None)
 
     def train_log_metrics(self, out, batch):
         segmentation = self.mae.segmentation_output(out['out'])
