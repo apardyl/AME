@@ -13,6 +13,8 @@ class ReconstructionMae(BaseGlimpseMae):
 
         self.train_rmse_overall = torchmetrics.MeanSquaredError(squared=False)
         self.val_rmse_overall = torchmetrics.MeanSquaredError(squared=False)
+        self.train_rmse_pred = torchmetrics.MeanSquaredError(squared=False)
+        self.val_rmse_pred = torchmetrics.MeanSquaredError(squared=False)
         self.train_tina = torchmetrics.MeanMetric()
         self.val_tina = torchmetrics.MeanMetric()
         self.train_rmse_masked = torchmetrics.MeanSquaredError(squared=False)
@@ -31,11 +33,15 @@ class ReconstructionMae(BaseGlimpseMae):
         with torch.no_grad():
             reconstructed = self.mae.reconstruct(out['out'], batch[0], out['mask'])
             reconstructed = self.__rev_normalize(reconstructed)
+            pred = self.mae.unpatchify(out['out'])
+            pred = self.__rev_normalize(pred)
             target = self.__rev_normalize(batch[0])
 
             self.log('train/rmse_overall', self.train_rmse_overall(reconstructed, target), on_step=False, on_epoch=True,
                      sync_dist=True)
-            tina_metric = torch.mean(torch.sqrt(torch.sum((reconstructed - target) ** 2, 1)), [0, 1, 2])
+            self.log('train/rmse_pred', self.train_rmse_pred(pred, target), on_step=False, on_epoch=True,
+                     sync_dist=True)
+            tina_metric = torch.mean(torch.sqrt(torch.sum((pred - target) ** 2, 1)), [0, 1, 2])
             self.log('train/tina', self.train_tina(tina_metric), on_step=False, on_epoch=True, sync_dist=True)
 
             mask_neg = ~out['mask']
@@ -48,11 +54,15 @@ class ReconstructionMae(BaseGlimpseMae):
         with torch.no_grad():
             reconstructed = self.mae.reconstruct(out['out'], batch[0], out['mask'])
             reconstructed = self.__rev_normalize(reconstructed)
+            pred = self.mae.unpatchify(out['out'])
+            pred = self.__rev_normalize(pred)
             target = self.__rev_normalize(batch[0])
 
             self.log('val/rmse_overall', self.val_rmse_overall(reconstructed, target), on_step=False, on_epoch=True,
                      sync_dist=True)
-            tina_metric = torch.mean(torch.sqrt(torch.sum((reconstructed - target) ** 2, 1)), [0, 1, 2])
+            self.log('val/rmse_pred', self.val_rmse_pred(pred, target), on_step=False, on_epoch=True,
+                     sync_dist=True)
+            tina_metric = torch.mean(torch.sqrt(torch.sum((pred - target) ** 2, 1)), [0, 1, 2])
             self.log('val/tina', self.val_tina(tina_metric), on_step=False, on_epoch=True, sync_dist=True)
 
             mask_neg = ~out['mask']
