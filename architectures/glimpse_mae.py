@@ -6,10 +6,10 @@ from typing import Optional, Any
 import torch
 import torchmetrics
 from pytorch_lightning import LightningModule
-from torch.optim import Adam
+from torch.optim import AdamW
 
 from architectures.mae import mae_vit_large_patch16
-from architectures.utils import WarmUpScheduler
+from architectures.utils import MaeScheduler
 from config import GLIMPSES_W, GLIMPSES_H, IMG_SIZE
 
 
@@ -24,11 +24,14 @@ class BaseGlimpseMae(LightningModule, ABC):
 
         self.num_glimpses = args.num_glimpses
         self.lr = args.lr
+        self.min_lr = args.min_lr
+        self.warmup_epochs = args.warmup_epochs
         self.weight_decay = args.weight_decay
-        self.warm_up_iters = args.num_samples // args.train_batch_size  # TODO(apardyl): remove references to data params
-        self.lr_decay = args.lr_decay
+        self.epochs = args.epochs
         self.masked_loss = args.masked_loss
         self.glimpse_selector = glimpse_selector
+
+        self.current_lr = args.lr
 
         self.save_hyperparameters(ignore=['glimpse_selector'])
 
@@ -38,11 +41,15 @@ class BaseGlimpseMae(LightningModule, ABC):
         parser.add_argument('--lr',
                             help='learning_rate',
                             type=float,
-                            default=1e-4)
-        parser.add_argument('--lr-decay',
-                            help='learning rate decay each epoch',
+                            default=1.5e-4)
+        parser.add_argument('--warmup-epochs',
+                            help='epochs to warmup LR',
+                            type=int,
+                            default=10)
+        parser.add_argument('--min-lr',
+                            help='lower lr bound for cyclic schedulers that hit 0',
                             type=float,
-                            default=0.97)
+                            default=1e-8)
         parser.add_argument('--weight-decay',
                             help='weight_decay',
                             type=float,
@@ -109,7 +116,8 @@ class BaseGlimpseMae(LightningModule, ABC):
     def training_step(self, batch, batch_idx):
         out = self.forward(batch)
         loss = out['loss']
-        self.log('train/loss', self.train_loss(loss), on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train/loss', self.train_loss(loss), on_step=True)
+        self.log('train/lr', self.current_lr, on_step=False, on_epoch=True, sync_dist=True, prog_bar=True)
         self.train_log_metrics(out, batch)
         return loss
 
@@ -119,22 +127,21 @@ class BaseGlimpseMae(LightningModule, ABC):
         self.val_log_metrics(out, batch)
 
     def configure_optimizers(self):
-        optimizer = Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        scheduler = WarmUpScheduler(optimizer=optimizer, warm_up_iters=self.warm_up_iters, lr_decay=self.lr_decay)
+        optimizer = AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay, betas=(0.9, 0.95))
+        scheduler = MaeScheduler(optimizer=optimizer,
+                                 lr=self.lr,
+                                 warmup_epochs=self.warmup_epochs,
+                                 min_lr=self.min_lr,
+                                 epochs=self.epochs)
 
         lr_schedulers = [
             {
                 'scheduler': scheduler,
-                'interval': 'step'
+                'interval': 'epoch'
             }
         ]
 
         return [optimizer], lr_schedulers
 
     def lr_scheduler_step(self, scheduler, optimizer_idx: int, metric: Optional[Any]) -> None:
-        scheduler.step()
-
-    def on_train_epoch_start(self) -> None:
-        super().on_train_epoch_start()
-
-        self.lr_schedulers().step_epoch()
+        self.current_lr = scheduler.step(epoch=self.current_epoch)
