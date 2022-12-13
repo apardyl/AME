@@ -26,7 +26,6 @@ class BaseGlimpseSelector:
 class RandomGlimpseSelector(BaseGlimpseSelector):
     def __init__(self, model):
         super().__init__(model)
-        assert self.glimpse_size == 3  # other sizes not supported yet
 
     def forward(self, mask, mask_indices, glimpse_num):
         """True in mask represents patches kept, False removed"""
@@ -34,10 +33,10 @@ class RandomGlimpseSelector(BaseGlimpseSelector):
         new_glimpse_x = torch.randint(0, self.grid_w - 2, size=(N, 1), device=mask.device)
         new_glimpse_y = torch.randint(0, self.grid_h - 2, size=(N, 1), device=mask.device)
         glimpses = self.grid_w * new_glimpse_y + new_glimpse_x
-        glimpses = glimpses.repeat(1, 3)
-        glimpses[:, 1] += 1
-        glimpses[:, 2] += 2
-        glimpses = torch.cat((glimpses, glimpses + self.grid_w, glimpses + 2 * self.grid_w), dim=1)
+        glimpses = glimpses.repeat(1, self.glimpse_size)
+        for idx in range(1, self.glimpse_size):
+            glimpses[:, idx] += idx
+        glimpses = torch.cat([glimpses + self.grid_w * idx for idx in range(self.glimpse_size)], dim=1)
         mask = mask.scatter(1, glimpses, torch.full_like(mask, fill_value=True))
         mask_indices = torch.cat((mask_indices, glimpses), dim=1)
         return mask, mask_indices
@@ -48,7 +47,6 @@ class CheckerboardGlimpseSelector(BaseGlimpseSelector):
         super().__init__(model)
         self.coordinates = [(1, 1), (5, 1), (9, 1), (13, 1),
                             (1, 5), (5, 5), (9, 5), (13, 5)]
-        assert self.glimpse_size == 3  # other sizes not supported yet
 
     def forward(self, mask, mask_indices, glimpse_num):
         N, L = mask.shape
@@ -56,10 +54,10 @@ class CheckerboardGlimpseSelector(BaseGlimpseSelector):
         new_glimpse_x = torch.full((N, 1), fill_value=to_take[0], device=mask.device)
         new_glimpse_y = torch.full((N, 1), fill_value=to_take[1], device=mask.device)
         glimpses = self.grid_w * new_glimpse_y + new_glimpse_x
-        glimpses = glimpses.repeat(1, 3)
-        glimpses[:, 1] += 1
-        glimpses[:, 2] += 2
-        glimpses = torch.cat((glimpses, glimpses + self.grid_w, glimpses + 2 * self.grid_w), dim=1)
+        glimpses = glimpses.repeat(1, self.glimpse_size)
+        for idx in range(1, self.glimpse_size):
+            glimpses[:, idx] += idx
+        glimpses = torch.cat([glimpses + self.grid_w * idx for idx in range(self.glimpse_size)], dim=1)
         mask.scatter_(1, glimpses, torch.full_like(mask, fill_value=True))
         mask_indices = torch.cat((mask_indices, glimpses), dim=1)
 
