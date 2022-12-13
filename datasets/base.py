@@ -15,6 +15,7 @@ class BaseDataModule(LightningDataModule, abc.ABC):
         self.eval_batch_size = args.eval_batch_size
         self.num_workers = args.num_workers
         self.num_samples = args.num_samples
+        self.image_size = args.image_size
 
         self.train_dataset = None
         self.test_dataset = None
@@ -45,6 +46,11 @@ class BaseDataModule(LightningDataModule, abc.ABC):
                             help='number of images to sample in each training epoch',
                             type=int,
                             default=50000)
+        parser.add_argument('--image-size',
+                            help='image size H W',
+                            type=int,
+                            nargs=2,
+                            default=(128, 256))
         return parent_parser
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:

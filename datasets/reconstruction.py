@@ -8,27 +8,30 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, RandomResizedCrop, InterpolationMode, RandomHorizontalFlip, Resize, \
     ToTensor, Normalize
 
-from config import IMG_SIZE
 from datasets.base import BaseDataModule
 from datasets.utils import IMAGENET_MEAN, IMAGENET_STD
 
-DEFAULT_AUG_IMG_TRANSFORM = Compose([
-    RandomResizedCrop(IMG_SIZE, scale=(0.2, 1.0), interpolation=InterpolationMode.BICUBIC),
-    RandomHorizontalFlip(),
-    Resize(IMG_SIZE),
-    ToTensor(),
-    Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-])
 
-DEFAULT_IMG_TRANSFORM = Compose([
-    Resize(IMG_SIZE),
-    ToTensor(),
-    Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-])
+def get_default_aug_img_transform(img_size):
+    return Compose([
+        RandomResizedCrop(img_size, scale=(0.2, 1.0), interpolation=InterpolationMode.BICUBIC),
+        RandomHorizontalFlip(),
+        Resize(img_size),
+        ToTensor(),
+        Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+    ])
+
+
+def get_default_img_transform(img_size):
+    return Compose([
+        Resize(img_size),
+        ToTensor(),
+        Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+    ])
 
 
 class ReconstructionDataset(torch.utils.data.Dataset):
-    def __init__(self, root_dir, transform=DEFAULT_IMG_TRANSFORM):
+    def __init__(self, root_dir, transform=None):
         self.root_dir = root_dir
         self.transform = transform
         self.data = os.listdir(root_dir)
@@ -62,12 +65,15 @@ class BaseReconstructionDataModule(BaseDataModule, abc.ABC):
 
     def setup(self, stage: Optional[str] = None) -> None:
         if stage == 'fit':
-            self.train_dataset = ReconstructionDataset(root_dir=self.train_dir, transform=DEFAULT_AUG_IMG_TRANSFORM)
+            self.train_dataset = ReconstructionDataset(root_dir=self.train_dir,
+                                                       transform=get_default_aug_img_transform(self.image_size))
             print(f'Loaded {len(self.train_dataset)} train samples')
-            self.val_dataset = ReconstructionDataset(root_dir=self.val_dir)
+            self.val_dataset = ReconstructionDataset(root_dir=self.val_dir,
+                                                     transform=get_default_img_transform(self.image_size))
             print(f'Loaded {len(self.val_dataset)} val samples')
         elif stage == 'test':
-            self.test_dataset = ReconstructionDataset(root_dir=self.test_dir)
+            self.test_dataset = ReconstructionDataset(root_dir=self.test_dir,
+                                                      transform=get_default_img_transform(self.image_size))
             print(f'Loaded {len(self.test_dataset)} test samples')
         else:
             raise NotImplemented()

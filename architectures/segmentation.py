@@ -6,15 +6,17 @@ import torchmetrics
 
 from architectures.glimpse_mae import BaseGlimpseMae
 from architectures.selectors import RandomGlimpseSelector, CheckerboardGlimpseSelector, AttentionGlimpseSelector
-from config import NUM_SEG_CLASSES
+from datasets.segmentation import BaseSegmentationDataModule
 
 
 class SegmentationMae(BaseGlimpseMae):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, out_chans=NUM_SEG_CLASSES)
-        self.mae.decoder_pred = nn.Linear(512, 16 ** 2 * NUM_SEG_CLASSES, bias=True)
+    def __init__(self, args, datamodule, *other_args, **kwargs):
+        super().__init__(args, datamodule, *other_args, **kwargs, out_chans=self.num_classes)
+        assert isinstance(datamodule, BaseSegmentationDataModule)
+        self.num_classes = datamodule.num_classes
+        self.mae.decoder_pred = nn.Linear(512, 16 ** 2 * self.num_classes, bias=True)
 
-        self.define_metric('mAP', partial(torchmetrics.classification.MulticlassAccuracy, num_classes=NUM_SEG_CLASSES,
+        self.define_metric('mAP', partial(torchmetrics.classification.MulticlassAccuracy, num_classes=self.num_classes,
                                           average='macro',
                                           multidim_average='global'))
 
@@ -29,15 +31,15 @@ class SegmentationMae(BaseGlimpseMae):
 
 
 class RandomSegMae(SegmentationMae):
-    def __init__(self, args):
-        super().__init__(args, glimpse_selector=RandomGlimpseSelector)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, glimpse_selector=RandomGlimpseSelector)
 
 
 class CheckerboardSegMae(SegmentationMae):
-    def __init__(self, args):
-        super().__init__(args, glimpse_selector=CheckerboardGlimpseSelector)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, glimpse_selector=CheckerboardGlimpseSelector)
 
 
 class AttentionSegMae(SegmentationMae):
-    def __init__(self, args):
-        super().__init__(args, glimpse_selector=AttentionGlimpseSelector)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, glimpse_selector=AttentionGlimpseSelector)

@@ -10,14 +10,14 @@ from torch.optim import AdamW
 
 from architectures.mae import mae_vit_large_patch16
 from architectures.utils import MaeScheduler
-from config import IMG_SIZE
+from datasets.base import BaseDataModule
 
 
 class BaseGlimpseMae(LightningModule, ABC):
-    def __init__(self, args: Any, glimpse_selector=None, out_chans=3):
+    def __init__(self, args: Any, datamodule: BaseDataModule, glimpse_selector=None, out_chans=3):
         super().__init__()
 
-        self.mae = mae_vit_large_patch16(img_size=IMG_SIZE, out_chans=out_chans)
+        self.mae = mae_vit_large_patch16(img_size=datamodule.image_size, out_chans=out_chans)
 
         self.num_glimpses = args.num_glimpses
         self.lr = args.lr

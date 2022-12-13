@@ -78,7 +78,7 @@ def main():
     setattr(args, 'arch', main_args.arch)
 
     data_module = data_module_class(args)
-    model = arch_class(args)
+    model = arch_class(args, data_module)
 
     model.load_pretrained_mae()
     if args.load_model_path:
