@@ -2,11 +2,46 @@ import abc
 import os.path
 from typing import Optional, Tuple
 
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from torch.utils.data import DataLoader, RandomSampler
+import torch
+from PIL import Image
+from torch.utils.data import DataLoader
+from torchvision.transforms import Compose, RandomResizedCrop, InterpolationMode, RandomHorizontalFlip, Resize, \
+    ToTensor, Normalize
 
+from config import IMG_SIZE
 from datasets.base import BaseDataModule
-from datasets.utils import ReconstructionDataset, DEFAULT_AUG_IMG_TRANSFORM
+from datasets.utils import IMAGENET_MEAN, IMAGENET_STD
+
+DEFAULT_AUG_IMG_TRANSFORM = Compose([
+    RandomResizedCrop(IMG_SIZE, scale=(0.2, 1.0), interpolation=InterpolationMode.BICUBIC),
+    RandomHorizontalFlip(),
+    Resize(IMG_SIZE),
+    ToTensor(),
+    Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+])
+
+DEFAULT_IMG_TRANSFORM = Compose([
+    Resize(IMG_SIZE),
+    ToTensor(),
+    Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+])
+
+
+class ReconstructionDataset(torch.utils.data.Dataset):
+    def __init__(self, root_dir, transform=DEFAULT_IMG_TRANSFORM):
+        self.root_dir = root_dir
+        self.transform = transform
+        self.data = os.listdir(root_dir)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+        sample = Image.open(os.path.join(self.root_dir, sample)).convert('RGB')
+        if self.transform is not None:
+            sample = self.transform(sample)
+        return sample, torch.zeros(1)  # empty
 
 
 class BaseReconstructionDataModule(BaseDataModule, abc.ABC):
@@ -36,18 +71,6 @@ class BaseReconstructionDataModule(BaseDataModule, abc.ABC):
             print(f'Loaded {len(self.val_dataset)} test samples')
         else:
             raise NotImplemented()
-
-    def train_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.train_dataset, batch_size=self.train_batch_size, num_workers=self.num_workers,
-                          sampler=RandomSampler(self.train_dataset, replacement=True, num_samples=self.num_samples))
-
-    def test_dataloader(self) -> EVAL_DATALOADERS:
-        return DataLoader(self.test_dataset, batch_size=self.eval_batch_size, shuffle=False,
-                          num_workers=self.num_workers)
-
-    def val_dataloader(self) -> EVAL_DATALOADERS:
-        return DataLoader(self.val_dataset, batch_size=self.eval_batch_size, shuffle=False,
-                          num_workers=self.num_workers)
 
 
 class Coco2014Reconstruction(BaseReconstructionDataModule):
