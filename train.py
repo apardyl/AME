@@ -74,6 +74,8 @@ def main():
                         action=argparse.BooleanOptionalAction)
 
     args = parser.parse_args(sys.argv[3:])
+    setattr(args, 'dataset', main_args.dataset)
+    setattr(args, 'arch', main_args.arch)
 
     data_module = data_module_class(args)
     model = arch_class(args)

@@ -1,7 +1,7 @@
 import abc
 import argparse
 from abc import ABC
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 
 import torch
 import torchmetrics
@@ -10,7 +10,7 @@ from torch.optim import AdamW
 
 from architectures.mae import mae_vit_large_patch16
 from architectures.utils import MaeScheduler
-from config import GLIMPSES_W, GLIMPSES_H, IMG_SIZE
+from config import IMG_SIZE
 
 
 class BaseGlimpseMae(LightningModule, ABC):
@@ -19,9 +19,6 @@ class BaseGlimpseMae(LightningModule, ABC):
 
         self.mae = mae_vit_large_patch16(img_size=IMG_SIZE, out_chans=out_chans)
 
-        self.train_loss = torchmetrics.MeanMetric()
-        self.val_loss = torchmetrics.MeanMetric()
-
         self.num_glimpses = args.num_glimpses
         self.lr = args.lr
         self.min_lr = args.min_lr
@@ -29,17 +26,29 @@ class BaseGlimpseMae(LightningModule, ABC):
         self.weight_decay = args.weight_decay
         self.epochs = args.epochs
         self.masked_loss = args.masked_loss
-        self.glimpse_selector = glimpse_selector
+        self.glimpse_size = args.glimpse_size
+        self.glimpse_selector = glimpse_selector(self)
 
         self.current_lr = args.lr
 
         self.save_hyperparameters(ignore=['glimpse_selector'])
 
+        self.define_metric('loss', torchmetrics.MeanMetric)
+
+    def define_metric(self, name: str, metric_constructor: Callable):
+        for mode in ['train', 'val', 'test']:
+            setattr(self, f'{mode}_{name}', metric_constructor())
+
+    def log_metric(self, mode: str, name: str, *args, on_step: bool = False, on_epoch: bool = True,
+                   sync_dist: bool = True, prog_bar: bool = False, **kwargs) -> None:
+        self.log(name=f'{mode}/{name}', value=getattr(self, f'{mode}_{name}')(*args, **kwargs), on_step=on_step,
+                 on_epoch=on_epoch, sync_dist=sync_dist, prog_bar=prog_bar)
+
     @classmethod
     def add_argparse_args(cls, parent_parser):
-        parser = parent_parser.add_argument_group(cls.__name__)
+        parser = parent_parser.add_argument_group(BaseGlimpseMae.__name__)
         parser.add_argument('--lr',
-                            help='learning_rate',
+                            help='learning-rate',
                             type=float,
                             default=1.5e-4)
         parser.add_argument('--warmup-epochs',
@@ -58,7 +67,11 @@ class BaseGlimpseMae(LightningModule, ABC):
                             help='number of glimpses to take',
                             type=int,
                             default=8)
-        parser.add_argument('--masked_loss',
+        parser.add_argument('--glimpse-size',
+                            help='size of a glimpse (in number of patches)',
+                            type=int,
+                            default=3)
+        parser.add_argument('--masked-loss',
                             help='calculate loss only for masked patches',
                             type=bool,
                             default=True,
@@ -91,7 +104,8 @@ class BaseGlimpseMae(LightningModule, ABC):
 
     def forward(self, batch, compute_loss=True):
         x = batch[0]
-        mask = torch.full((x.shape[0], GLIMPSES_W * GLIMPSES_H), fill_value=False, device=self.device)
+        mask = torch.full((x.shape[0], self.mae.grid_size[1] * self.mae.grid_size[0]), fill_value=False,
+                          device=self.device)
         mask_indices = torch.empty((x.shape[0], 0), dtype=torch.int32, device=self.device)
         losses = []
         loss = 0
@@ -99,7 +113,7 @@ class BaseGlimpseMae(LightningModule, ABC):
             latent = self.mae.forward_encoder(x, mask_indices)
             pred = self.mae.forward_decoder(latent, mask, mask_indices)
         for i in range(self.num_glimpses):
-            mask, mask_indices = self.glimpse_selector(self.mae, mask, mask_indices, i)
+            mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
             pred = self.forward_one(x, mask_indices, mask)
             if compute_loss:
                 losses.append(self.calculate_loss_one(pred, mask, batch))
@@ -107,24 +121,26 @@ class BaseGlimpseMae(LightningModule, ABC):
             loss = self.calculate_loss(losses, batch)
         return {"out": pred, "mask": mask, "losses": losses, "loss": loss}
 
-    def train_log_metrics(self, out, batch):
-        pass
-
-    def val_log_metrics(self, out, batch):
+    def do_metrics(self, mode, out, batch):
         pass
 
     def training_step(self, batch, batch_idx):
         out = self.forward(batch)
         loss = out['loss']
-        self.log('train/loss', self.train_loss(loss), on_step=True)
+        self.log_metric('train', 'loss', loss, on_step=True, on_epoch=False, sync_dist=False)
         self.log('train/lr', self.current_lr, on_step=False, on_epoch=True, sync_dist=True, prog_bar=True)
-        self.train_log_metrics(out, batch)
+        self.do_metrics('train', out, batch)
         return loss
 
     def validation_step(self, batch, batch_idx):
         out = self.forward(batch)
-        self.log('val/loss', self.val_loss(out['loss']), on_step=False, on_epoch=True, sync_dist=True)
-        self.val_log_metrics(out, batch)
+        self.log_metric('val', 'loss', out['loss'])
+        self.do_metrics('val', out, batch)
+
+    def test_step(self, batch, batch_idx):
+        out = self.forward(batch)
+        self.log_metric('test', 'loss', out['loss'])
+        self.do_metrics('test', out, batch)
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay, betas=(0.9, 0.95))
