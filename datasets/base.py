@@ -7,7 +7,7 @@ from torch.utils.data import RandomSampler, DataLoader
 
 
 class BaseDataModule(LightningDataModule, abc.ABC):
-    def __init__(self, args):
+    def __init__(self, args, has_test_data=True):
         super().__init__()
 
         self.data_dir = args.data_dir
@@ -19,6 +19,8 @@ class BaseDataModule(LightningDataModule, abc.ABC):
         self.train_dataset = None
         self.test_dataset = None
         self.val_dataset = None
+
+        self.has_test_data = has_test_data
 
     @classmethod
     def add_argparse_args(cls, parent_parser: ArgumentParser, **kwargs) -> ArgumentParser:

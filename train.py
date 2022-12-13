@@ -111,6 +111,9 @@ def main():
 
     trainer.fit(model=model, datamodule=data_module)
 
+    if data_module.has_test_data:
+        trainer.test(ckpt_path='best', datamodule=data_module)
+
 
 if __name__ == "__main__":
     main()

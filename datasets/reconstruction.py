@@ -45,20 +45,20 @@ class ReconstructionDataset(torch.utils.data.Dataset):
 
 
 class BaseReconstructionDataModule(BaseDataModule, abc.ABC):
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.train_dir, self.val_dir, self.test_dir = self._get_split_dirs(self.data_dir)
 
     @staticmethod
     @abc.abstractmethod
-    def _get_split_dirs(data_dir: str) -> Tuple[str, str, str]:
+    def _get_split_dirs(data_dir: str) -> Tuple[str, str, Optional[str]]:
         raise NotImplemented()
 
     def prepare_data(self) -> None:
         assert self.train_dir and os.path.exists(self.train_dir)
         assert self.val_dir and os.path.exists(self.val_dir)
-        assert self.test_dir and os.path.exists(self.test_dir)
+        assert self.test_dir is None or (self.test_dir and os.path.exists(self.test_dir))
 
     def setup(self, stage: Optional[str] = None) -> None:
         if stage == 'fit':
@@ -68,7 +68,7 @@ class BaseReconstructionDataModule(BaseDataModule, abc.ABC):
             print(f'Loaded {len(self.val_dataset)} val samples')
         elif stage == 'test':
             self.test_dataset = ReconstructionDataset(root_dir=self.test_dir)
-            print(f'Loaded {len(self.val_dataset)} test samples')
+            print(f'Loaded {len(self.test_dataset)} test samples')
         else:
             raise NotImplemented()
 
