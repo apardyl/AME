@@ -11,6 +11,7 @@ from torch.optim import AdamW
 from architectures.mae import mae_vit_large_patch16
 from architectures.utils import MaeScheduler
 from datasets.base import BaseDataModule
+from datasets.segmentation import BaseSegmentationDataModule
 
 
 class BaseGlimpseMae(LightningModule, ABC):
@@ -34,6 +35,10 @@ class BaseGlimpseMae(LightningModule, ABC):
         self.save_hyperparameters(ignore=['glimpse_selector'])
 
         self.define_metric('loss', torchmetrics.MeanMetric)
+
+        if args.pretrained_mae_path:
+            self.load_pretrained_mae(args.pretrained_mae_path,
+                                     segmentation=isinstance(datamodule, BaseSegmentationDataModule))
 
     def define_metric(self, name: str, metric_constructor: Callable):
         for mode in ['train', 'val', 'test']:
@@ -76,6 +81,10 @@ class BaseGlimpseMae(LightningModule, ABC):
                             type=bool,
                             default=True,
                             action=argparse.BooleanOptionalAction)
+        parser.add_argument('--pretrained-mae-path',
+                            help='path to pretrained MAE weights',
+                            type=str,
+                            default='architectures/mae_vit_l_128x256.pth')
         return parent_parser
 
     def load_pretrained_mae(self, path="architectures/mae_vit_l_128x256.pth", segmentation=False):

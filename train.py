@@ -80,9 +80,8 @@ def main():
     data_module = data_module_class(args)
     model = arch_class(args, data_module)
 
-    model.load_pretrained_mae()
     if args.load_model_path:
-        model.load_state_dict(torch.load(args.load_model_path))
+        model.load_from_checkpoint(args.load_model_path)
 
     print(
         f'The model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters\n')
