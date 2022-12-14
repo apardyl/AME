@@ -139,7 +139,7 @@ class MaskedAutoencoderViT(nn.Module):
         # Calculate pad_mask
         sorted_indices, indices = torch.sort(patch_indices, dim=1)
         is_overlap = sorted_indices[:, :-1] == sorted_indices[:, 1:]
-        is_overlap = torch.cat((torch.full_like(is_overlap[:, :1], fill_value=False), is_overlap), dim=1)
+        is_overlap = torch.cat((torch.full_like(sorted_indices[:, :1], fill_value=False), is_overlap), dim=1)
         pad_mask = torch.gather(is_overlap, 1, indices)
 
         # append cls token
