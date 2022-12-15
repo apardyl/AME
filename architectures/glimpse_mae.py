@@ -145,7 +145,7 @@ class BaseGlimpseMae(LightningModule, ABC):
             mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
             pred = self.forward_one(x, mask_indices, mask)
             if compute_loss:
-                loss = self.calculate_loss_one(pred, mask, batch)
+                loss = self.calculate_loss_one(pred, mask, batch).mean()
             return {"out": pred, "mask": mask, "losses": [loss], "loss": loss}
 
     def do_metrics(self, mode, out, batch):
