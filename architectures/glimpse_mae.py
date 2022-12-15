@@ -29,6 +29,7 @@ class BaseGlimpseMae(LightningModule, ABC):
         self.weight_decay = args.weight_decay
         self.epochs = args.epochs
         self.masked_loss = args.masked_loss
+        self.sum_losses = args.sum_losses
 
         assert self.glimpse_selector_class is not None
         self.glimpse_selector = self.glimpse_selector_class(self, args)
@@ -84,6 +85,11 @@ class BaseGlimpseMae(LightningModule, ABC):
                             help='path to pretrained MAE weights',
                             type=str,
                             default='architectures/mae_vit_l_128x256.pth')
+        parser.add_argument('--sum-losses',
+                            help='sum losses for all steps',
+                            type=bool,
+                            default=True,
+                            action=argparse.BooleanOptionalAction)
         parent_parser = cls.glimpse_selector_class.add_argparse_args(parent_parser)
         return parent_parser
 
@@ -116,19 +122,31 @@ class BaseGlimpseMae(LightningModule, ABC):
         mask = torch.full((x.shape[0], self.mae.grid_size[1] * self.mae.grid_size[0]), fill_value=False,
                           device=self.device)
         mask_indices = torch.empty((x.shape[0], 0), dtype=torch.int32, device=self.device)
-        losses = []
         loss = 0
+        # zero step (initialize decoder attention weights)
         with torch.no_grad():
             latent = self.mae.forward_encoder(x, mask_indices)
             pred = self.mae.forward_decoder(latent, mask, mask_indices)
-        for i in range(self.num_glimpses):
+        if self.sum_losses:
+            losses = []
+            for i in range(self.num_glimpses):
+                mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
+                pred = self.forward_one(x, mask_indices, mask)
+                if compute_loss:
+                    losses.append(self.calculate_loss_one(pred, mask, batch))
+            if compute_loss:
+                loss = self.calculate_loss(losses, batch)
+            return {"out": pred, "mask": mask, "losses": losses, "loss": loss}
+        else:
+            with torch.no_grad():
+                for i in range(self.num_glimpses - 1):
+                    mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
+                    self.forward_one(x, mask_indices, mask)
             mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
             pred = self.forward_one(x, mask_indices, mask)
             if compute_loss:
-                losses.append(self.calculate_loss_one(pred, mask, batch))
-        if compute_loss:
-            loss = self.calculate_loss(losses, batch)
-        return {"out": pred, "mask": mask, "losses": losses, "loss": loss}
+                loss = self.calculate_loss_one(pred, mask, batch)
+            return {"out": pred, "mask": mask, "losses": [loss], "loss": loss}
 
     def do_metrics(self, mode, out, batch):
         pass
