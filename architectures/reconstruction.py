@@ -46,15 +46,12 @@ class ReconstructionMae(BaseGlimpseMae):
 
 
 class RandomMae(ReconstructionMae):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, glimpse_selector=RandomGlimpseSelector)
+    glimpse_selector_class = RandomGlimpseSelector
 
 
 class CheckerboardMae(ReconstructionMae):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, glimpse_selector=CheckerboardGlimpseSelector)
+    glimpse_selector_class = CheckerboardGlimpseSelector
 
 
 class AttentionMae(ReconstructionMae):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, glimpse_selector=AttentionGlimpseSelector)
+    glimpse_selector_class = AttentionGlimpseSelector

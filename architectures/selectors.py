@@ -7,13 +7,21 @@ from architectures.glimpse_mae import BaseGlimpseMae
 
 
 class BaseGlimpseSelector:
-    def __init__(self, model: BaseGlimpseMae):
-        super().__init__()
-
+    def __init__(self, model: BaseGlimpseMae, args):
         self.model = model
-        self.glimpse_size = model.glimpse_size
+        self.glimpse_size = args.glimpse_size
         self.grid_h = model.mae.grid_size[0]
         self.grid_w = model.mae.grid_size[1]
+
+    @classmethod
+    def add_argparse_args(cls, parent_parser):
+        parser = parent_parser.add_argument_group(BaseGlimpseSelector.__name__)
+        parser.add_argument('--glimpse-size',
+                            help='size of a glimpse (in number of patches)',
+                            type=int,
+                            default=3)
+
+        return parent_parser
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -24,8 +32,6 @@ class BaseGlimpseSelector:
 
 
 class RandomGlimpseSelector(BaseGlimpseSelector):
-    def __init__(self, model):
-        super().__init__(model)
 
     def forward(self, mask, mask_indices, glimpse_num):
         """True in mask represents patches kept, False removed"""
@@ -43,8 +49,8 @@ class RandomGlimpseSelector(BaseGlimpseSelector):
 
 
 class CheckerboardGlimpseSelector(BaseGlimpseSelector):
-    def __init__(self, model):
-        super().__init__(model)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.coordinates = [(1, 1), (5, 1), (9, 1), (13, 1),
                             (1, 5), (5, 5), (9, 5), (13, 5)]
 
@@ -65,14 +71,26 @@ class CheckerboardGlimpseSelector(BaseGlimpseSelector):
 
 
 class AttentionGlimpseSelector(BaseGlimpseSelector):
-    def __init__(self, model):
-        super().__init__(model)
+    def __init__(self, model, args):
+        super().__init__(model, args)
+        self.attention_layer = args.attention_layer
+
+    @classmethod
+    def add_argparse_args(cls, parent_parser):
+        parent_parser = super().add_argparse_args(parent_parser)
+        parser = parent_parser.add_argument_group(AttentionGlimpseSelector.__name__)
+        parser.add_argument('--attention-layer',
+                            help='number of attention layer in MAE to source entropy information from (0-7)',
+                            type=int,
+                            default=7)
+
+        return parent_parser
 
     def forward(self, current_mask, mask_indices, glimpse_num):
         with torch.no_grad():
             current_mask = ~current_mask
             # get self attention weights
-            attn = self.model.mae.last_attn[7][..., 1:, 1:]
+            attn = self.model.mae.last_attn[self.attention_layer][..., 1:, 1:]
             B = attn.shape[0]
 
             # set attention weights to known patches to 0

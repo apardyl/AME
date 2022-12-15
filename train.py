@@ -102,7 +102,7 @@ def main():
     if args.wandb:
         loggers.append(WandbLogger(project='glimpse_mae', entity="ideas_cv", name=run_name))
 
-    checkpoint_callback = ModelCheckpoint(dirpath=f"checkpoints/{run_name}", save_top_k=1, monitor="val/loss")
+    checkpoint_callback = ModelCheckpoint(dirpath=f"checkpoints/{run_name}", monitor="val/loss")
 
     trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=loggers,
                       callbacks=[checkpoint_callback],

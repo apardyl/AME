@@ -15,7 +15,9 @@ from datasets.segmentation import BaseSegmentationDataModule
 
 
 class BaseGlimpseMae(LightningModule, ABC):
-    def __init__(self, args: Any, datamodule: BaseDataModule, glimpse_selector=None, out_chans=3):
+    glimpse_selector_class = None
+
+    def __init__(self, args: Any, datamodule: BaseDataModule, out_chans=3):
         super().__init__()
 
         self.mae = mae_vit_large_patch16(img_size=datamodule.image_size, out_chans=out_chans)
@@ -27,12 +29,13 @@ class BaseGlimpseMae(LightningModule, ABC):
         self.weight_decay = args.weight_decay
         self.epochs = args.epochs
         self.masked_loss = args.masked_loss
-        self.glimpse_size = args.glimpse_size
-        self.glimpse_selector = glimpse_selector(self)
+
+        assert self.glimpse_selector_class is not None
+        self.glimpse_selector = self.glimpse_selector_class(self, args)
 
         self.current_lr = args.lr
 
-        self.save_hyperparameters(ignore=['glimpse_selector'])
+        self.save_hyperparameters(ignore=['datamodule'])
 
         self.define_metric('loss', torchmetrics.MeanMetric)
 
@@ -72,10 +75,6 @@ class BaseGlimpseMae(LightningModule, ABC):
                             help='number of glimpses to take',
                             type=int,
                             default=8)
-        parser.add_argument('--glimpse-size',
-                            help='size of a glimpse (in number of patches)',
-                            type=int,
-                            default=3)
         parser.add_argument('--masked-loss',
                             help='calculate loss only for masked patches',
                             type=bool,
@@ -85,6 +84,7 @@ class BaseGlimpseMae(LightningModule, ABC):
                             help='path to pretrained MAE weights',
                             type=str,
                             default='architectures/mae_vit_l_128x256.pth')
+        parent_parser = cls.glimpse_selector_class.add_argparse_args(parent_parser)
         return parent_parser
 
     def load_pretrained_mae(self, path="architectures/mae_vit_l_128x256.pth", segmentation=False):

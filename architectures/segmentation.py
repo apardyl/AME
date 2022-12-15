@@ -31,15 +31,13 @@ class SegmentationMae(BaseGlimpseMae):
 
 
 class RandomSegMae(SegmentationMae):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, glimpse_selector=RandomGlimpseSelector)
+    glimpse_selector_class = RandomGlimpseSelector
 
 
 class CheckerboardSegMae(SegmentationMae):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, glimpse_selector=CheckerboardGlimpseSelector)
+    glimpse_selector_class = CheckerboardGlimpseSelector
 
 
 class AttentionSegMae(SegmentationMae):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, glimpse_selector=AttentionGlimpseSelector)
+    glimpse_selector_class = AttentionGlimpseSelector
+
