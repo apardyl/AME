@@ -44,6 +44,8 @@ class BaseGlimpseMae(LightningModule, ABC):
             self.load_pretrained_mae(args.pretrained_mae_path,
                                      segmentation=isinstance(datamodule, BaseSegmentationDataModule))
 
+        self.debug = False
+
     def define_metric(self, name: str, metric_constructor: Callable):
         for mode in ['train', 'val', 'test']:
             setattr(self, f'{mode}_{name}', metric_constructor())
@@ -123,10 +125,14 @@ class BaseGlimpseMae(LightningModule, ABC):
                           device=self.device)
         mask_indices = torch.empty((x.shape[0], 0), dtype=torch.int32, device=self.device)
         loss = 0
+        steps = []
         # zero step (initialize decoder attention weights)
         with torch.no_grad():
             latent = self.mae.forward_encoder(x, mask_indices)
             pred = self.mae.forward_decoder(latent, mask, mask_indices)
+            if self.debug:
+                steps.append(
+                    (mask.detach().clone().cpu(), pred.detach().clone().cpu(), None))
         if self.sum_losses:
             losses = []
             for i in range(self.num_glimpses):
@@ -134,19 +140,24 @@ class BaseGlimpseMae(LightningModule, ABC):
                 pred = self.forward_one(x, mask_indices, mask)
                 if compute_loss:
                     losses.append(self.calculate_loss_one(pred, mask, batch))
+                if self.debug:
+                    steps.append(
+                        (mask.detach().clone().cpu(), pred.detach().clone().cpu(), self.glimpse_selector.debug_info))
             if compute_loss:
                 loss = self.calculate_loss(losses, batch)
-            return {"out": pred, "mask": mask, "losses": losses, "loss": loss}
+            return {"out": pred, "mask": mask, "losses": losses, "loss": loss, "steps": steps}
         else:
             with torch.no_grad():
                 for i in range(self.num_glimpses - 1):
                     mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
-                    self.forward_one(x, mask_indices, mask)
+                    pred = self.forward_one(x, mask_indices, mask)
+                    if self.debug:
+                        steps.append((mask.detach().clone().cpu(), pred.detach().clone().cpu()))
             mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
             pred = self.forward_one(x, mask_indices, mask)
             if compute_loss:
                 loss = self.calculate_loss_one(pred, mask, batch).mean()
-            return {"out": pred, "mask": mask, "losses": [loss], "loss": loss}
+            return {"out": pred, "mask": mask, "losses": [loss], "loss": loss, "steps": steps}
 
     def do_metrics(self, mode, out, batch):
         pass
@@ -168,6 +179,9 @@ class BaseGlimpseMae(LightningModule, ABC):
         out = self.forward(batch)
         self.log_metric('test', 'loss', out['loss'])
         self.do_metrics('test', out, batch)
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
+        return self.forward(batch, compute_loss=False)
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay, betas=(0.9, 0.95))

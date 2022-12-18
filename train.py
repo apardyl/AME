@@ -1,50 +1,25 @@
 import argparse
-import inspect
 import platform
 import random
 import sys
 import time
 
-import pytorch_lightning
 import torch
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, RichProgressBar, RichModelSummary
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from pytorch_lightning.plugins import NativeMixedPrecisionPlugin
 from pytorch_lightning.strategies import DDPStrategy
 from torch.cuda.amp import GradScaler
 
-import architectures
-import datasets
+from utils.prepare import experiment_from_args
 
 random.seed(1)
 torch.manual_seed(1)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        prog='TrainWhereToLookNext'
-    )
-
-    archs = {k: v for k, v in inspect.getmembers(architectures, inspect.isclass) if
-             issubclass(v, pytorch_lightning.LightningModule) and not inspect.isabstract(v)}
-    dss = {k: v for k, v in inspect.getmembers(datasets, inspect.isclass) if
-           issubclass(v, pytorch_lightning.LightningDataModule) and not inspect.isabstract(
-               v) and k != 'LightningDataModule'}
-
-    parser.add_argument('dataset', help='Dataset to use', choices=dss.keys())
-    parser.add_argument('arch', help='Model architecture', choices=archs.keys())
-    main_args = parser.parse_args(sys.argv[1:3])
-
-    arch_class = archs[main_args.arch]
-    data_module_class = dss[main_args.dataset]
-
-    parser = argparse.ArgumentParser(
-        prog=f'TrainWhereToLookNext {main_args.dataset} {main_args.arch}',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    parser = arch_class.add_argparse_args(parser)
-    parser = data_module_class.add_argparse_args(parser)
+def define_args(parent_parser):
+    parser = parent_parser.add_argument_group('train.py')
     parser.add_argument('--epochs',
                         help='number of epochs',
                         type=int,
@@ -72,16 +47,11 @@ def main():
                         type=bool,
                         default=False,
                         action=argparse.BooleanOptionalAction)
+    return parent_parser
 
-    args = parser.parse_args(sys.argv[3:])
-    setattr(args, 'dataset', main_args.dataset)
-    setattr(args, 'arch', main_args.arch)
 
-    data_module = data_module_class(args)
-    model = arch_class(args, data_module)
-
-    if args.load_model_path:
-        model.load_from_checkpoint(args.load_model_path)
+def main():
+    data_module, model, args = experiment_from_args(sys.argv, add_argparse_args_fn=define_args)
 
     print(
         f'The model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters\n')
@@ -105,10 +75,10 @@ def main():
     checkpoint_callback = ModelCheckpoint(dirpath=f"checkpoints/{run_name}", monitor="val/loss")
 
     trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=loggers,
-                      callbacks=[checkpoint_callback],
+                      callbacks=[checkpoint_callback, RichProgressBar(leave=True), RichModelSummary(max_depth=3)],
                       strategy=DDPStrategy(find_unused_parameters=False) if args.ddp else None)
 
-    trainer.fit(model=model, datamodule=data_module)
+    trainer.fit(model=model, datamodule=data_module, ckpt_path=args.load_model_path)
 
     if data_module.has_test_data:
         trainer.test(ckpt_path='best', datamodule=data_module)
