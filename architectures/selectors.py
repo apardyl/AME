@@ -98,17 +98,17 @@ class AttentionGlimpseSelector(BaseGlimpseSelector):
             del attn
             entropy = torch.nan_to_num(entropy, nan=0)
             entropy = entropy.sum((1, 3))
+            entropy = entropy.reshape(shape=(B, 1, self.grid_h, self.grid_w))
+
+            if self.model.debug:
+                self.debug_info['entropy'] = entropy.detach().clone()
 
             # calculate sampling weights for next glimpse
-
-            entropy = entropy.reshape(shape=(B, 1, self.grid_h, self.grid_w))
             next_mask = nn.functional.avg_pool2d(entropy, kernel_size=self.glimpse_size, stride=1, padding=0)
             next_mask = nn.functional.pad(next_mask,
                                           (0, self.grid_w - next_mask.shape[3], 0, self.grid_h - next_mask.shape[2]),
                                           mode='constant', value=0)
             assert next_mask.shape == (B, 1, self.grid_h, self.grid_w)
-            if self.model.debug:
-                self.debug_info['entropy'] = entropy.detach().clone()
             del entropy
 
             if self.model.debug:
