@@ -9,6 +9,8 @@ from datasets.utils import IMAGENET_MEAN, IMAGENET_STD
 _imagenet_mean = torch.tensor(IMAGENET_MEAN).unsqueeze(1).unsqueeze(1)
 _imagenet_std = torch.tensor(IMAGENET_STD).unsqueeze(1).unsqueeze(1)
 
+plt.rcParams.update({'figure.max_open_warning': 50})
+
 
 def save_reconstructions(model, output, batch, vis_id, dump_path):
     mae = model.mae
@@ -57,7 +59,7 @@ def save_reconstructions(model, output, batch, vis_id, dump_path):
                 if has_att_info:
                     if s < entropies.shape[1]:
                         axs[3, s].imshow(entropies[i][s][0])
-                        axs[3, s].set_title('entropies')
+                        axs[3, s].set_title('entropy')
 
                         axs[4, s].imshow(selection_maps[i][s][0])
                         axs[4, s].set_title('next glimpse')
