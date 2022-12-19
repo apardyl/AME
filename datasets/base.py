@@ -1,4 +1,5 @@
 import abc
+import sys
 from argparse import ArgumentParser
 
 from pytorch_lightning import LightningDataModule
@@ -7,7 +8,9 @@ from torch.utils.data import RandomSampler, DataLoader
 
 
 class BaseDataModule(LightningDataModule, abc.ABC):
-    def __init__(self, args, has_test_data=True):
+    has_test_data = True
+
+    def __init__(self, args):
         super().__init__()
 
         self.data_dir = args.data_dir
@@ -20,8 +23,6 @@ class BaseDataModule(LightningDataModule, abc.ABC):
         self.train_dataset = None
         self.test_dataset = None
         self.val_dataset = None
-
-        self.has_test_data = has_test_data
 
     @classmethod
     def add_argparse_args(cls, parent_parser: ArgumentParser, **kwargs) -> ArgumentParser:
@@ -54,13 +55,16 @@ class BaseDataModule(LightningDataModule, abc.ABC):
         return parent_parser
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        print(f'Loaded {len(self.train_dataset)} train samples', file=sys.stderr)
         return DataLoader(self.train_dataset, batch_size=self.train_batch_size, num_workers=self.num_workers,
                           sampler=RandomSampler(self.train_dataset, replacement=True, num_samples=self.num_samples))
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        print(f'Loaded {len(self.test_dataset)} test samples', file=sys.stderr)
         return DataLoader(self.test_dataset, batch_size=self.eval_batch_size, shuffle=False,
                           num_workers=self.num_workers)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        print(f'Loaded {len(self.val_dataset)} val samples', file=sys.stderr)
         return DataLoader(self.val_dataset, batch_size=self.eval_batch_size, shuffle=False,
                           num_workers=self.num_workers)

@@ -34,8 +34,12 @@ def main():
 
     assert isinstance(data_module, BaseReconstructionDataModule)
 
-    data_module.setup('test')
-    loader = data_module.test_dataloader()
+    if data_module.has_test_data:
+        data_module.setup('test')
+        loader = data_module.test_dataloader()
+    else:
+        data_module.setup('fit')
+        loader = data_module.val_dataloader()
 
     model = model.cuda()
     model.eval()

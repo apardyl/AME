@@ -12,14 +12,17 @@ from datasets.base import BaseDataModule
 from datasets.utils import IMAGENET_MEAN, IMAGENET_STD
 
 
-def get_default_aug_img_transform(img_size):
-    return Compose([
-        RandomResizedCrop(img_size, scale=(0.2, 1.0), interpolation=InterpolationMode.BICUBIC),
+def get_default_aug_img_transform(img_size, scale=True):
+    aug = []
+    if scale:
+        aug.append(RandomResizedCrop(img_size, scale=(0.2, 1.0), interpolation=InterpolationMode.BICUBIC))
+    aug += [
         RandomHorizontalFlip(),
         Resize(img_size),
         ToTensor(),
         Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-    ])
+    ]
+    return Compose(aug)
 
 
 def get_default_img_transform(img_size):
@@ -31,58 +34,63 @@ def get_default_img_transform(img_size):
 
 
 class ReconstructionDataset(torch.utils.data.Dataset):
-    def __init__(self, root_dir, transform=None):
-        self.root_dir = root_dir
+    def __init__(self, root_dir=None, file_list=None, transform=None):
+        assert root_dir is not None or file_list is not None
+        if root_dir is not None:
+            self.data = [os.path.join(root_dir, p) for p in os.listdir(root_dir)]
+        else:
+            self.data = file_list
+
         self.transform = transform
-        self.data = os.listdir(root_dir)
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
         sample = self.data[index]
-        sample = Image.open(os.path.join(self.root_dir, sample)).convert('RGB')
+        sample = Image.open(sample).convert('RGB')
         if self.transform is not None:
             sample = self.transform(sample)
         return sample, torch.zeros(1)  # empty
 
 
 class BaseReconstructionDataModule(BaseDataModule, abc.ABC):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    pass
 
-        self.train_dir, self.val_dir, self.test_dir = self._get_split_dirs(self.data_dir)
 
-    @staticmethod
-    @abc.abstractmethod
-    def _get_split_dirs(data_dir: str) -> Tuple[str, str, Optional[str]]:
-        raise NotImplemented()
-
-    def prepare_data(self) -> None:
-        assert self.train_dir and os.path.exists(self.train_dir)
-        assert self.val_dir and os.path.exists(self.val_dir)
-        assert self.test_dir is None or (self.test_dir and os.path.exists(self.test_dir))
-
+class Coco2014Reconstruction(BaseReconstructionDataModule):
     def setup(self, stage: Optional[str] = None) -> None:
+        train_dir = os.path.join(self.data_dir, 'train2014')
+        val_dir = os.path.join(self.data_dir, 'val2014')
+        test_dir = os.path.join(self.data_dir, 'test2014')
+
         if stage == 'fit':
-            self.train_dataset = ReconstructionDataset(root_dir=self.train_dir,
+            self.train_dataset = ReconstructionDataset(root_dir=train_dir,
                                                        transform=get_default_aug_img_transform(self.image_size))
-            print(f'Loaded {len(self.train_dataset)} train samples')
-            self.val_dataset = ReconstructionDataset(root_dir=self.val_dir,
+            self.val_dataset = ReconstructionDataset(root_dir=val_dir,
                                                      transform=get_default_img_transform(self.image_size))
-            print(f'Loaded {len(self.val_dataset)} val samples')
         elif stage == 'test':
-            self.test_dataset = ReconstructionDataset(root_dir=self.test_dir,
+            self.test_dataset = ReconstructionDataset(root_dir=test_dir,
                                                       transform=get_default_img_transform(self.image_size))
-            print(f'Loaded {len(self.test_dataset)} test samples')
         else:
             raise NotImplemented()
 
 
-class Coco2014Reconstruction(BaseReconstructionDataModule):
-    @staticmethod
-    def _get_split_dirs(data_dir: str) -> Tuple[str, str, str]:
-        train_dir = os.path.join(data_dir, 'train2014')
-        val_dir = os.path.join(data_dir, 'val2014')
-        test_dir = os.path.join(data_dir, 'test2014')
-        return train_dir, val_dir, test_dir
+class Sun360Reconstruction(BaseReconstructionDataModule):
+    has_test_data = False
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        with open(os.path.join(os.path.dirname(__file__), 'meta/sun360-dataset26-random.txt')) as f:
+            file_list = f.readlines()
+        file_list = [os.path.join(self.data_dir, p.strip()) for p in file_list]
+        val_list = file_list[:len(file_list) // 10]
+        train_list = file_list[len(file_list) // 10:]
+
+        if stage == 'fit':
+            self.train_dataset = ReconstructionDataset(file_list=train_list,
+                                                       transform=get_default_aug_img_transform(self.image_size,
+                                                                                               scale=False))
+            self.val_dataset = ReconstructionDataset(file_list=val_list,
+                                                     transform=get_default_img_transform(self.image_size))
+        else:
+            raise NotImplemented()
