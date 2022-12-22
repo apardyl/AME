@@ -32,7 +32,7 @@ class ClassificationMae(BaseGlimpseMae):
     def calculate_loss_one(self, reconstruction, aux, mask, batch):
         rec_loss = self.mae.forward_loss(batch[0], reconstruction, mask if self.masked_loss else None)
         cls_loss = nn.functional.cross_entropy(aux, batch[1])
-        return rec_loss + cls_loss
+        return rec_loss * 0.01 + cls_loss
 
     def __rev_normalize(self, img):
         return torch.clip((img * self.imagenet_std + self.imagenet_mean) * 255, 0, 255)
