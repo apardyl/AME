@@ -1,5 +1,6 @@
 import abc
 import argparse
+import sys
 from abc import ABC
 from typing import Optional, Any, Callable
 
@@ -41,8 +42,9 @@ class BaseGlimpseMae(LightningModule, ABC):
         self.define_metric('loss', torchmetrics.MeanMetric)
 
         if args.pretrained_mae_path:
-            self.load_pretrained_mae(args.pretrained_mae_path,
-                                     segmentation=isinstance(datamodule, BaseSegmentationDataModule))
+            print(self.load_pretrained_mae(args.pretrained_mae_path,
+                                           segmentation=isinstance(datamodule, BaseSegmentationDataModule)),
+                  file=sys.stderr)
 
         self.debug = False
 
@@ -96,15 +98,26 @@ class BaseGlimpseMae(LightningModule, ABC):
         return parent_parser
 
     def load_pretrained_mae(self, path="architectures/mae_vit_l_128x256.pth", segmentation=False):
-        checkpoint = torch.load(path, map_location='cpu')["model"]
-        del checkpoint['pos_embed']
-        del checkpoint['decoder_pos_embed']
+        checkpoint = torch.load(path, map_location='cpu')
+        if 'model' in checkpoint:
+            checkpoint = checkpoint["model"]
+            prefix = ''
+        elif 'state_dict' in checkpoint:
+            checkpoint = checkpoint['state_dict']
+            prefix = 'mae.'
+        else:
+            raise NotImplemented()
+        del checkpoint[prefix + 'pos_embed']
+        del checkpoint[prefix + 'decoder_pos_embed']
 
         if segmentation:
-            del checkpoint['decoder_pred.weight']
-            del checkpoint['decoder_pred.bias']
+            del checkpoint[prefix + 'decoder_pred.weight']
+            del checkpoint[prefix + 'decoder_pred.bias']
 
-        return self.mae.load_state_dict(checkpoint, strict=False)
+        if prefix == '':
+            return self.mae.load_state_dict(checkpoint, strict=False)
+        else:
+            return self.load_state_dict(checkpoint, strict=False)
 
     @abc.abstractmethod
     def calculate_loss_one(self, reconstruction, aux, mask, batch):
