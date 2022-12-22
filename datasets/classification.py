@@ -56,7 +56,7 @@ class Sun360Classification(BaseClassificationDataModule):
         with open(os.path.join(os.path.dirname(__file__), 'meta/sun360-dataset26-random.txt')) as f:
             file_list = f.readlines()
         labels = [str.join('/', p.split('/')[:2]) for p in file_list]
-        classes = {name: idx for idx, name in enumerate(set(labels))}
+        classes = {name: idx for idx, name in enumerate(sorted(set(labels)))}
         labels = [classes[x] for x in labels]
         file_list = [os.path.join(self.data_dir, p.strip()) for p in file_list]
         val_list = file_list[:len(file_list) // 10]
