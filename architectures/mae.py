@@ -170,15 +170,13 @@ class MaskedAutoencoderViT(nn.Module):
             x = blk(x)
         x = self.decoder_norm(x)
 
-        cls = x[:, :1, :]
-
         # predictor projection
         x = self.decoder_pred(x)
 
         # remove cls token
         x = x[:, 1:, :]
 
-        return x, cls
+        return x
 
     def forward_loss(self, imgs, pred, mask=None):
         """

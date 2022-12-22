@@ -18,14 +18,16 @@ class ClassificationMae(BaseGlimpseMae):
 
         self.define_metric('accuracy',
                            partial(torchmetrics.classification.MulticlassAccuracy, num_classes=self.num_classes))
-        self.define_metric('auc', partial(torchmetrics.classification.MulticlassAUROC, num_classes=self.num_classes))
 
         self.head = nn.Sequential(
-            nn.Linear(512, self.num_classes),
+            nn.Linear(1024, 256),
+            nn.GELU(),
+            nn.Linear(256, self.num_classes),
         )
 
-    def forward_head(self, reconstruction, cls_token):
-        return self.head(cls_token.reshape(cls_token.shape[0], -1))
+    def forward_head(self, latent, reconstruction):
+        latent = latent[:, 0, :] # get cls token
+        return self.head(latent)
 
     def calculate_loss_one(self, reconstruction, aux, mask, batch):
         rec_loss = self.mae.forward_loss(batch[0], reconstruction, mask if self.masked_loss else None)

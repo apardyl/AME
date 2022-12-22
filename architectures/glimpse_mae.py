@@ -114,13 +114,13 @@ class BaseGlimpseMae(LightningModule, ABC):
         loss = torch.mean(torch.stack(losses))
         return loss
 
-    def forward_head(self, reconstruction, cls_token):
+    def forward_head(self, latent, reconstruction):
         return None
 
     def forward_one(self, x, mask_indices, mask):
         latent = self.mae.forward_encoder(x, mask_indices)
-        reconstruction, cls_token = self.mae.forward_decoder(latent, mask, mask_indices)
-        aux = self.forward_head(reconstruction, cls_token)
+        reconstruction = self.mae.forward_decoder(latent, mask, mask_indices)
+        aux = self.forward_head(latent, reconstruction)
         return reconstruction, aux
 
     def forward(self, batch, compute_loss=True):
