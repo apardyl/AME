@@ -47,6 +47,10 @@ def define_args(parent_parser):
                         type=bool,
                         default=False,
                         action=argparse.BooleanOptionalAction)
+    parser.add_argument('--name',
+                        help='experiment name',
+                        type=str,
+                        default=None)
     return parent_parser
 
 
@@ -63,7 +67,9 @@ def main():
         grad_scaler = GradScaler()
         plugins += [NativeMixedPrecisionPlugin(precision=16, device='cuda', scaler=grad_scaler)]
 
-    run_name = f'{time.strftime("%Y-%m-%d_%H:%M:%S")}-{platform.node()}'
+    run_name = args.name
+    if run_name is None:
+        run_name = f'{time.strftime("%Y-%m-%d_%H:%M:%S")}-{platform.node()}'
     print('Run name:', run_name)
 
     loggers = []
@@ -76,6 +82,7 @@ def main():
 
     trainer = Trainer(plugins=plugins, max_epochs=args.epochs, accelerator='auto', logger=loggers,
                       callbacks=[checkpoint_callback, RichProgressBar(leave=True), RichModelSummary(max_depth=3)],
+                      enable_model_summary=False,
                       strategy=DDPStrategy(find_unused_parameters=False) if args.ddp else None)
 
     trainer.fit(model=model, datamodule=data_module, ckpt_path=args.load_model_path)

@@ -21,8 +21,8 @@ class ReconstructionMae(BaseGlimpseMae):
         self.define_metric('rmse_masked', partial(torchmetrics.MeanSquaredError, squared=False))
         self.define_metric('tina', torchmetrics.MeanMetric)
 
-    def calculate_loss_one(self, pred, mask, batch):
-        return self.mae.forward_loss(batch[0], pred, mask if self.masked_loss else None)
+    def calculate_loss_one(self, reconstruction, aux, mask, batch):
+        return self.mae.forward_loss(batch[0], reconstruction, mask if self.masked_loss else None)
 
     def __rev_normalize(self, img):
         return torch.clip((img * self.imagenet_std + self.imagenet_mean) * 255, 0, 255)

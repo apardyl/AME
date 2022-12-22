@@ -170,13 +170,15 @@ class MaskedAutoencoderViT(nn.Module):
             x = blk(x)
         x = self.decoder_norm(x)
 
+        cls = x[:, :1, :]
+
         # predictor projection
         x = self.decoder_pred(x)
 
         # remove cls token
         x = x[:, 1:, :]
 
-        return x
+        return x, cls
 
     def forward_loss(self, imgs, pred, mask=None):
         """
@@ -199,16 +201,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         return loss
 
-    def forward_seg_loss(self, pred, target, mask=None):
 
-        pred = self.unpatchify(pred)
-        loss = nn.functional.cross_entropy(pred, target, reduction="none").unsqueeze(1)
-        loss = self.patchify(loss)
-        if mask is not None:
-            mask_neg = ~mask.unsqueeze(2)
-            loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
-
-        return loss
 
     def reconstruct(self, pred, target, mask):
         with torch.no_grad():

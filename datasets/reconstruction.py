@@ -1,36 +1,13 @@
 import abc
 import os.path
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, RandomResizedCrop, InterpolationMode, RandomHorizontalFlip, Resize, \
-    ToTensor, Normalize
 
 from datasets.base import BaseDataModule
-from datasets.utils import IMAGENET_MEAN, IMAGENET_STD
-
-
-def get_default_aug_img_transform(img_size, scale=True):
-    aug = []
-    if scale:
-        aug.append(RandomResizedCrop(img_size, scale=(0.2, 1.0), interpolation=InterpolationMode.BICUBIC))
-    aug += [
-        RandomHorizontalFlip(),
-        Resize(img_size),
-        ToTensor(),
-        Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-    ]
-    return Compose(aug)
-
-
-def get_default_img_transform(img_size):
-    return Compose([
-        Resize(img_size),
-        ToTensor(),
-        Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-    ])
+from datasets.utils import get_default_aug_img_transform, get_default_img_transform
 
 
 class ReconstructionDataset(torch.utils.data.Dataset):
@@ -92,5 +69,14 @@ class Sun360Reconstruction(BaseReconstructionDataModule):
                                                                                                scale=False))
             self.val_dataset = ReconstructionDataset(file_list=val_list,
                                                      transform=get_default_img_transform(self.image_size))
+        else:
+            raise NotImplemented()
+
+
+class TestImageDirReconstruction(BaseReconstructionDataModule):
+    def setup(self, stage: Optional[str] = None) -> None:
+        if stage == 'test':
+            self.test_dataset = ReconstructionDataset(root_dir=self.data_dir,
+                                                      transform=get_default_img_transform(self.image_size))
         else:
             raise NotImplemented()

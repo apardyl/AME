@@ -10,8 +10,8 @@ from datasets.segmentation import BaseSegmentationDataModule
 
 
 class SegmentationMae(BaseGlimpseMae):
-    def __init__(self, args, datamodule, *other_args, **kwargs):
-        super().__init__(args, datamodule, *other_args, **kwargs, out_chans=self.num_classes)
+    def __init__(self, args, datamodule):
+        super().__init__(args, datamodule, out_chans=self.num_classes)
         assert isinstance(datamodule, BaseSegmentationDataModule)
         self.num_classes = datamodule.num_classes
         self.mae.decoder_pred = nn.Linear(512, 16 ** 2 * self.num_classes, bias=True)
@@ -26,8 +26,18 @@ class SegmentationMae(BaseGlimpseMae):
             segmentation = self.mae.segmentation_output(out['out'])
             self.log_metric(mode, 'mAP', segmentation, batch[1])
 
-    def calculate_loss_one(self, pred, mask, batch):
-        return self.mae.forward_seg_loss(pred, batch[1], mask if self.masked_loss else None)
+    def forward_seg_loss(self, pred, target, mask=None):
+        pred = self.mae.unpatchify(pred)
+        loss = nn.functional.cross_entropy(pred, target, reduction="none").unsqueeze(1)
+        loss = self.mae.patchify(loss)
+        if mask is not None:
+            mask_neg = ~mask.unsqueeze(2)
+            loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
+
+        return loss
+
+    def calculate_loss_one(self, reconstruction, aux, mask, batch):
+        return self.forward_seg_loss(reconstruction, batch[1], mask if self.masked_loss else None)
 
 
 class RandomSegMae(SegmentationMae):
@@ -40,4 +50,3 @@ class CheckerboardSegMae(SegmentationMae):
 
 class AttentionSegMae(SegmentationMae):
     glimpse_selector_class = AttentionGlimpseSelector
-

@@ -36,7 +36,7 @@ class BaseGlimpseMae(LightningModule, ABC):
 
         self.current_lr = args.lr
 
-        self.save_hyperparameters(ignore=['datamodule'])
+        self.save_hyperparameters(ignore=['datamodule', 'out_chans'])
 
         self.define_metric('loss', torchmetrics.MeanMetric)
 
@@ -107,17 +107,21 @@ class BaseGlimpseMae(LightningModule, ABC):
         return self.mae.load_state_dict(checkpoint, strict=False)
 
     @abc.abstractmethod
-    def calculate_loss_one(self, pred, mask, batch):
+    def calculate_loss_one(self, reconstruction, aux, mask, batch):
         raise NotImplemented()
 
     def calculate_loss(self, losses, batch):
         loss = torch.mean(torch.stack(losses))
         return loss
 
+    def forward_head(self, reconstruction, cls_token):
+        return None
+
     def forward_one(self, x, mask_indices, mask):
         latent = self.mae.forward_encoder(x, mask_indices)
-        pred = self.mae.forward_decoder(latent, mask, mask_indices)
-        return pred
+        reconstruction, cls_token = self.mae.forward_decoder(latent, mask, mask_indices)
+        aux = self.forward_head(reconstruction, cls_token)
+        return reconstruction, aux
 
     def forward(self, batch, compute_loss=True):
         x = batch[0]
@@ -125,39 +129,30 @@ class BaseGlimpseMae(LightningModule, ABC):
                           device=self.device)
         mask_indices = torch.empty((x.shape[0], 0), dtype=torch.int32, device=self.device)
         loss = 0
+        losses = []
         steps = []
         # zero step (initialize decoder attention weights)
-        with torch.no_grad():
-            latent = self.mae.forward_encoder(x, mask_indices)
-            pred = self.mae.forward_decoder(latent, mask, mask_indices)
+        reconstruction, aux = self.forward_one(x, mask_indices, mask)
+        if self.debug:
+            steps.append(
+                (mask.detach().clone().cpu(), reconstruction.detach().clone().cpu(), None))
+        for i in range(self.num_glimpses):
+            mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
+            reconstruction, aux = self.forward_one(x, mask_indices, mask)
+            if compute_loss and self.sum_losses:
+                losses.append(self.calculate_loss_one(reconstruction, aux, mask, batch))
             if self.debug:
                 steps.append(
-                    (mask.detach().clone().cpu(), pred.detach().clone().cpu(), None))
+                    (mask.detach().clone().cpu(), reconstruction.detach().clone().cpu(),
+                     self.glimpse_selector.debug_info))
+        if compute_loss:
+            loss = self.calculate_loss(losses, batch)
         if self.sum_losses:
-            losses = []
-            for i in range(self.num_glimpses):
-                mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
-                pred = self.forward_one(x, mask_indices, mask)
-                if compute_loss:
-                    losses.append(self.calculate_loss_one(pred, mask, batch))
-                if self.debug:
-                    steps.append(
-                        (mask.detach().clone().cpu(), pred.detach().clone().cpu(), self.glimpse_selector.debug_info))
-            if compute_loss:
-                loss = self.calculate_loss(losses, batch)
-            return {"out": pred, "mask": mask, "losses": losses, "loss": loss, "steps": steps}
+            return {"out": reconstruction, "mask": mask, "losses": losses, "loss": loss, "steps": steps,
+                    "aux": aux}
         else:
-            with torch.no_grad():
-                for i in range(self.num_glimpses - 1):
-                    mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
-                    pred = self.forward_one(x, mask_indices, mask)
-                    if self.debug:
-                        steps.append((mask.detach().clone().cpu(), pred.detach().clone().cpu()))
-            mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
-            pred = self.forward_one(x, mask_indices, mask)
-            if compute_loss:
-                loss = self.calculate_loss_one(pred, mask, batch).mean()
-            return {"out": pred, "mask": mask, "losses": [loss], "loss": loss, "steps": steps}
+            return {"out": reconstruction, "mask": mask, "losses": [loss], "loss": loss, "steps": steps,
+                    "aux": aux}
 
     def do_metrics(self, mode, out, batch):
         pass
