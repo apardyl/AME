@@ -139,20 +139,18 @@ class BaseGlimpseMae(LightningModule, ABC):
         for i in range(self.num_glimpses):
             mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
             reconstruction, aux = self.forward_one(x, mask_indices, mask)
-            if compute_loss and self.sum_losses:
-                losses.append(self.calculate_loss_one(reconstruction, aux, mask, batch))
+            if compute_loss:
+                loss = self.calculate_loss_one(reconstruction, aux, mask, batch)
+                losses.append(loss)
             if self.debug:
                 steps.append(
                     (mask.detach().clone().cpu(), reconstruction.detach().clone().cpu(),
                      self.glimpse_selector.debug_info))
-        if compute_loss:
+
+        if compute_loss and self.sum_losses:
             loss = self.calculate_loss(losses, batch)
-        if self.sum_losses:
-            return {"out": reconstruction, "mask": mask, "losses": losses, "loss": loss, "steps": steps,
-                    "aux": aux}
-        else:
-            return {"out": reconstruction, "mask": mask, "losses": [loss], "loss": loss, "steps": steps,
-                    "aux": aux}
+
+        return {"out": reconstruction, "mask": mask, "losses": losses, "loss": loss, "steps": steps, "aux": aux}
 
     def do_metrics(self, mode, out, batch):
         pass
