@@ -198,10 +198,10 @@ class MaskedAutoencoderViT(nn.Module):
         if mask is not None:
             mask_neg = ~mask
             loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
+        else:
+            loss = loss.sum()
 
         return loss
-
-
 
     def reconstruct(self, pred, target, mask):
         with torch.no_grad():
