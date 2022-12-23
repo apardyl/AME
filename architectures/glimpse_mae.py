@@ -52,9 +52,12 @@ class BaseGlimpseMae(LightningModule, ABC):
         for mode in ['train', 'val', 'test']:
             setattr(self, f'{mode}_{name}', metric_constructor())
 
+    def get_metric(self, mode: str, name: str):
+        return getattr(self, f'{mode}_{name}')
+
     def log_metric(self, mode: str, name: str, *args, on_step: bool = False, on_epoch: bool = True,
                    sync_dist: bool = True, prog_bar: bool = False, **kwargs) -> None:
-        self.log(name=f'{mode}/{name}', value=getattr(self, f'{mode}_{name}')(*args, **kwargs), on_step=on_step,
+        self.log(name=f'{mode}/{name}', value=self.get_metric(mode, name)(*args, **kwargs), on_step=on_step,
                  on_epoch=on_epoch, sync_dist=sync_dist, prog_bar=prog_bar)
 
     @classmethod
