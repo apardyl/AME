@@ -46,7 +46,7 @@ class BaseDataModule(LightningDataModule, abc.ABC):
         parser.add_argument('--num-samples',
                             help='number of images to sample in each training epoch',
                             type=int,
-                            default=50000)
+                            default=None)
         parser.add_argument('--image-size',
                             help='image size H W',
                             type=int,
@@ -56,8 +56,11 @@ class BaseDataModule(LightningDataModule, abc.ABC):
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         print(f'Loaded {len(self.train_dataset)} train samples', file=sys.stderr)
+        sampler = None
+        if self.num_samples is not None:
+            sampler = RandomSampler(self.train_dataset, replacement=True, num_samples=self.num_samples)
         return DataLoader(self.train_dataset, batch_size=self.train_batch_size, num_workers=self.num_workers,
-                          sampler=RandomSampler(self.train_dataset, replacement=True, num_samples=self.num_samples))
+                          sampler=sampler, shuffle=None if sampler is not None else True)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
         print(f'Loaded {len(self.test_dataset)} test samples', file=sys.stderr)
