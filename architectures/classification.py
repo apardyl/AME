@@ -56,7 +56,7 @@ class ClassificationMae(BaseGlimpseMae):
                 'conf_mat': wandb.plot.confusion_matrix(
                     y_true=self.get_metric(mode, 'targets').compute().int().tolist(),
                     probs=self.get_metric(mode, 'probs').compute().cpu(),
-                    class_names=[str(x) for x in range(self.num_classes)])
+                    class_names=[f'{x:02d}' for x in range(self.num_classes)])
             })
 
     def on_train_epoch_end(self) -> None:
