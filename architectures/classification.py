@@ -24,9 +24,7 @@ class ClassificationMae(BaseGlimpseMae):
         self.define_metric('probs', torchmetrics.CatMetric)
 
         self.head = nn.Sequential(
-            nn.Linear(1024, 256),
-            nn.GELU(),
-            nn.Linear(256, self.num_classes),
+            nn.Linear(1024, self.num_classes),
         )
 
     def forward_head(self, latent, reconstruction):
@@ -36,7 +34,7 @@ class ClassificationMae(BaseGlimpseMae):
     def calculate_loss_one(self, reconstruction, aux, mask, batch):
         rec_loss = self.mae.forward_loss(batch[0], reconstruction, mask if self.masked_loss else None)
         cls_loss = nn.functional.cross_entropy(aux, batch[1])
-        return rec_loss * 0.01 + cls_loss
+        return rec_loss * 0.001 + cls_loss
 
     def __rev_normalize(self, img):
         return torch.clip((img * self.imagenet_std + self.imagenet_mean) * 255, 0, 255)
@@ -53,11 +51,13 @@ class ClassificationMae(BaseGlimpseMae):
             if not isinstance(logger, WandbLogger):
                 continue
             logger.experiment.log({
-                'conf_mat': wandb.plot.confusion_matrix(
+                f'{mode}_conf_mat': wandb.plot.confusion_matrix(
                     y_true=self.get_metric(mode, 'targets').compute().int().tolist(),
                     probs=self.get_metric(mode, 'probs').compute().cpu(),
                     class_names=[f'{x:02d}' for x in range(self.num_classes)])
-            })
+            }, step=self.global_step)
+            self.get_metric(mode, 'targets').reset()
+            self.get_metric(mode, 'probs').reset()
 
     def on_train_epoch_end(self) -> None:
         self.do_conf_matrix('train')

@@ -7,9 +7,23 @@ from typing import Optional
 import torch
 from PIL import Image
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from torchvision.transforms import RandomResizedCrop, InterpolationMode, RandomHorizontalFlip, Resize, ToTensor, \
+    Normalize, Compose, TrivialAugmentWide
 
 from datasets.base import BaseDataModule
-from datasets.utils import get_default_aug_img_transform, get_default_img_transform
+from datasets.utils import get_default_aug_img_transform, get_default_img_transform, IMAGENET_MEAN, IMAGENET_STD
+
+
+def get_classification_aug_img_transform(img_size):
+    aug = [
+        # RandomResizedCrop(img_size, scale=(0.6, 1.0), interpolation=InterpolationMode.BICUBIC)
+        RandomHorizontalFlip(),
+        Resize(img_size),
+        TrivialAugmentWide(),
+        ToTensor(),
+        Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+    ]
+    return Compose(aug)
 
 
 class ClassificationDataset(torch.utils.data.Dataset):
@@ -66,8 +80,7 @@ class Sun360Classification(BaseClassificationDataModule):
 
         if stage == 'fit':
             self.train_dataset = ClassificationDataset(file_list=train_list, label_list=train_labels,
-                                                       transform=get_default_aug_img_transform(self.image_size,
-                                                                                               scale=False))
+                                                       transform=get_classification_aug_img_transform(self.image_size))
             self.val_dataset = ClassificationDataset(file_list=val_list, label_list=val_labels,
                                                      transform=get_default_img_transform(self.image_size))
         else:
