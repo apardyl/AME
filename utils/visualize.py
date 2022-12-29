@@ -17,13 +17,13 @@ def save_reconstructions(model, output, batch, vis_id, dump_path):
     with torch.no_grad():
         B = batch[0].shape[0]
         steps = output['steps']
-        reconstructed = torch.stack([x[1] for x in steps], dim=1).reshape(
+        reconstructed = torch.stack([x['out'] for x in steps], dim=1).reshape(
             B * len(steps), *output['out'].shape[1:])
-        mask = torch.stack([x[0] for x in steps], dim=1)
+        mask = torch.stack([x['mask'] for x in steps], dim=1)
         has_att_info = len(steps[1][2]) > 0
         if has_att_info:
-            entropies = torch.stack([x[2]['entropy'].cpu() for x in steps[1:]], dim=1)
-            selection_maps = torch.stack([x[2]['selection_map'].cpu() for x in steps[1:]], dim=1)
+            entropies = torch.stack([x['entropy'].cpu() for x in steps[1:]], dim=1)
+            selection_maps = torch.stack([x['selection_map'].cpu() for x in steps[1:]], dim=1)
 
         reconstructed = torch.clip(
             (mae.unpatchify(reconstructed) * _imagenet_std + _imagenet_mean) * 255, 0, 255)

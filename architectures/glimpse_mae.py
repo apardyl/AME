@@ -2,44 +2,32 @@ import abc
 import argparse
 import sys
 from abc import ABC
-from typing import Optional, Any, Callable
+from typing import Any, Dict
 
 import torch
-import torchmetrics
-from pytorch_lightning import LightningModule
-from torch.optim import AdamW
 
+from architectures.base import BaseArchitecture
 from architectures.mae import mae_vit_large_patch16
-from architectures.utils import MaeScheduler
+from architectures.utils import dict_to_cpu
 from datasets.base import BaseDataModule
 from datasets.segmentation import BaseSegmentationDataModule
 
 
-class BaseGlimpseMae(LightningModule, ABC):
+class BaseGlimpseMae(BaseArchitecture, ABC):
     glimpse_selector_class = None
 
     def __init__(self, args: Any, datamodule: BaseDataModule, out_chans=3):
-        super().__init__()
+        super().__init__(args, datamodule)
 
         self.mae = mae_vit_large_patch16(img_size=datamodule.image_size, out_chans=out_chans)
 
         self.num_glimpses = args.num_glimpses
-        self.lr = args.lr
-        self.min_lr = args.min_lr
-        self.warmup_epochs = args.warmup_epochs
-        self.weight_decay = args.weight_decay
-        self.epochs = args.epochs
         self.masked_loss = args.masked_loss
         self.sum_losses = args.sum_losses
+        self.single_step = args.single_step
 
         assert self.glimpse_selector_class is not None
         self.glimpse_selector = self.glimpse_selector_class(self, args)
-
-        self.current_lr = args.lr
-
-        self.save_hyperparameters(ignore=['datamodule', 'out_chans'])
-
-        self.define_metric('loss', torchmetrics.MeanMetric)
 
         if args.pretrained_mae_path:
             print(self.load_pretrained_mae(args.pretrained_mae_path,
@@ -48,37 +36,10 @@ class BaseGlimpseMae(LightningModule, ABC):
 
         self.debug = False
 
-    def define_metric(self, name: str, metric_constructor: Callable):
-        for mode in ['train', 'val', 'test']:
-            setattr(self, f'{mode}_{name}', metric_constructor())
-
-    def get_metric(self, mode: str, name: str):
-        return getattr(self, f'{mode}_{name}')
-
-    def log_metric(self, mode: str, name: str, *args, on_step: bool = False, on_epoch: bool = True,
-                   sync_dist: bool = True, prog_bar: bool = False, **kwargs) -> None:
-        self.log(name=f'{mode}/{name}', value=self.get_metric(mode, name)(*args, **kwargs), on_step=on_step,
-                 on_epoch=on_epoch, sync_dist=sync_dist, prog_bar=prog_bar)
-
     @classmethod
     def add_argparse_args(cls, parent_parser):
+        parent_parser = super().add_argparse_args(parent_parser)
         parser = parent_parser.add_argument_group(BaseGlimpseMae.__name__)
-        parser.add_argument('--lr',
-                            help='learning-rate',
-                            type=float,
-                            default=1.5e-4)
-        parser.add_argument('--warmup-epochs',
-                            help='epochs to warmup LR',
-                            type=int,
-                            default=10)
-        parser.add_argument('--min-lr',
-                            help='lower lr bound for cyclic schedulers that hit 0',
-                            type=float,
-                            default=1e-8)
-        parser.add_argument('--weight-decay',
-                            help='weight_decay',
-                            type=float,
-                            default=0)
         parser.add_argument('--num-glimpses',
                             help='number of glimpses to take',
                             type=int,
@@ -96,6 +57,11 @@ class BaseGlimpseMae(LightningModule, ABC):
                             help='sum losses for all steps',
                             type=bool,
                             default=True,
+                            action=argparse.BooleanOptionalAction)
+        parser.add_argument('--single-step',
+                            help='do all glimpse selections in one step',
+                            type=bool,
+                            default=False,
                             action=argparse.BooleanOptionalAction)
         parent_parser = cls.glimpse_selector_class.add_argparse_args(parent_parser)
         return parent_parser
@@ -123,21 +89,20 @@ class BaseGlimpseMae(LightningModule, ABC):
             return self.load_state_dict(checkpoint, strict=False)
 
     @abc.abstractmethod
-    def calculate_loss_one(self, reconstruction, aux, mask, batch):
+    def calculate_loss_one(self, out, batch):
         raise NotImplemented()
 
     def calculate_loss(self, losses, batch):
-        loss = torch.mean(torch.stack(losses))
-        return loss
+        return torch.mean(torch.stack(losses))
 
-    def forward_head(self, latent, reconstruction):
-        return None
-
-    def forward_one(self, x, mask_indices, mask):
+    def forward_one(self, x, mask_indices, mask) -> Dict[str, torch.Tensor]:
         latent = self.mae.forward_encoder(x, mask_indices)
-        reconstruction = self.mae.forward_decoder(latent, mask, mask_indices)
-        aux = self.forward_head(latent, reconstruction)
-        return reconstruction, aux
+        out = self.mae.forward_decoder(latent, mask, mask_indices)
+        return {
+            'out': out,
+            'latent': latent,
+            'mask': mask
+        }
 
     def forward(self, batch, compute_loss=True):
         x = batch[0]
@@ -147,68 +112,26 @@ class BaseGlimpseMae(LightningModule, ABC):
         loss = 0
         losses = []
         steps = []
-        # zero step (initialize decoder attention weights)
-        reconstruction, aux = self.forward_one(x, mask_indices, mask)
-        if self.debug:
-            steps.append(
-                (mask.detach().clone().cpu(), reconstruction.detach().clone().cpu(), None))
+        if not self.single_step:
+            # zero step (initialize decoder attention weights)
+            out = self.forward_one(x, mask_indices, mask)
+            if self.debug:
+                steps.append(dict_to_cpu(out))
         for i in range(self.num_glimpses):
             mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
-            reconstruction, aux = self.forward_one(x, mask_indices, mask)
+            if self.single_step and i + 1 < self.num_glimpses:
+                continue
+            out = self.forward_one(x, mask_indices, mask)
             if compute_loss:
-                loss = self.calculate_loss_one(reconstruction, aux, mask, batch)
+                loss = self.calculate_loss_one(out, batch)
                 losses.append(loss)
             if self.debug:
-                steps.append(
-                    (mask.detach().clone().cpu(), reconstruction.detach().clone().cpu(),
-                     self.glimpse_selector.debug_info))
+                steps.append(dict_to_cpu(out | self.glimpse_selector.debug_info))
 
         if compute_loss and self.sum_losses:
             loss = self.calculate_loss(losses, batch)
 
-        return {"out": reconstruction, "mask": mask, "losses": losses, "loss": loss, "steps": steps, "aux": aux}
-
-    def do_metrics(self, mode, out, batch):
-        pass
-
-    def training_step(self, batch, batch_idx):
-        out = self.forward(batch)
-        loss = out['loss']
-        self.log_metric('train', 'loss', loss, on_step=True, on_epoch=False, sync_dist=False)
-        self.log('train/lr', self.current_lr, on_step=False, on_epoch=True, sync_dist=True, prog_bar=True)
-        self.do_metrics('train', out, batch)
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        out = self.forward(batch)
-        self.log_metric('val', 'loss', out['loss'])
-        self.do_metrics('val', out, batch)
-
-    def test_step(self, batch, batch_idx):
-        out = self.forward(batch)
-        self.log_metric('test', 'loss', out['loss'])
-        self.do_metrics('test', out, batch)
+        return out | {"losses": losses, "loss": loss, "steps": steps}
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
         return self.forward(batch, compute_loss=False)
-
-    def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay, betas=(0.9, 0.95))
-        scheduler = MaeScheduler(optimizer=optimizer,
-                                 lr=self.lr,
-                                 warmup_epochs=self.warmup_epochs,
-                                 min_lr=self.min_lr,
-                                 epochs=self.epochs)
-        scheduler.step(epoch=0)
-
-        lr_schedulers = [
-            {
-                'scheduler': scheduler,
-                'interval': 'epoch'
-            }
-        ]
-
-        return [optimizer], lr_schedulers
-
-    def lr_scheduler_step(self, scheduler, optimizer_idx: int, metric: Optional[Any]) -> None:
-        self.current_lr = scheduler.step(epoch=self.current_epoch + 1)

@@ -20,10 +20,6 @@ torch.manual_seed(1)
 
 def define_args(parent_parser):
     parser = parent_parser.add_argument_group('train.py')
-    parser.add_argument('--epochs',
-                        help='number of epochs',
-                        type=int,
-                        default=50)
     parser.add_argument('--use-fp16',
                         help='sets models precision to FP16. Default is FP32',
                         action='store_true',

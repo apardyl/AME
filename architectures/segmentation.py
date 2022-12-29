@@ -36,8 +36,8 @@ class SegmentationMae(BaseGlimpseMae):
 
         return loss
 
-    def calculate_loss_one(self, reconstruction, aux, mask, batch):
-        return self.forward_seg_loss(reconstruction, batch[1], mask if self.masked_loss else None)
+    def calculate_loss_one(self, out, batch):
+        return self.forward_seg_loss(out['out'], batch[1], out['mask'] if self.masked_loss else None)
 
 
 class RandomSegMae(SegmentationMae):

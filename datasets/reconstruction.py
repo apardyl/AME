@@ -43,7 +43,10 @@ class Coco2014Reconstruction(BaseReconstructionDataModule):
 
         if stage == 'fit':
             self.train_dataset = ReconstructionDataset(root_dir=train_dir,
-                                                       transform=get_default_aug_img_transform(self.image_size))
+                                                       transform=
+                                                       get_default_img_transform(self.image_size)
+                                                       if self.no_aug else
+                                                       get_default_aug_img_transform(self.image_size))
             self.val_dataset = ReconstructionDataset(root_dir=val_dir,
                                                      transform=get_default_img_transform(self.image_size))
         elif stage == 'test':
@@ -65,8 +68,10 @@ class Sun360Reconstruction(BaseReconstructionDataModule):
 
         if stage == 'fit':
             self.train_dataset = ReconstructionDataset(file_list=train_list,
-                                                       transform=get_default_aug_img_transform(self.image_size,
-                                                                                               scale=False))
+                                                       transform=
+                                                       get_default_img_transform(self.image_size)
+                                                       if self.no_aug else
+                                                       get_default_aug_img_transform(self.image_size, scale=False))
             self.val_dataset = ReconstructionDataset(file_list=val_list,
                                                      transform=get_default_img_transform(self.image_size))
         else:

@@ -72,6 +72,7 @@ class AttentionGlimpseSelector(BaseGlimpseSelector):
     def __init__(self, model, args):
         super().__init__(model, args)
         self.attention_layer = args.attention_layer
+        assert not model.single_step
 
     @classmethod
     def add_argparse_args(cls, parent_parser):

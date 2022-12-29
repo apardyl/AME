@@ -7,23 +7,10 @@ from typing import Optional
 import torch
 from PIL import Image
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from torchvision.transforms import RandomResizedCrop, InterpolationMode, RandomHorizontalFlip, Resize, ToTensor, \
-    Normalize, Compose, TrivialAugmentWide
+from torchvision.transforms import RandomHorizontalFlip, Resize, TrivialAugmentWide
 
 from datasets.base import BaseDataModule
-from datasets.utils import get_default_aug_img_transform, get_default_img_transform, IMAGENET_MEAN, IMAGENET_STD
-
-
-def get_classification_aug_img_transform(img_size):
-    aug = [
-        # RandomResizedCrop(img_size, scale=(0.6, 1.0), interpolation=InterpolationMode.BICUBIC)
-        RandomHorizontalFlip(),
-        Resize(img_size),
-        TrivialAugmentWide(),
-        ToTensor(),
-        Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-    ]
-    return Compose(aug)
+from datasets.utils import get_default_img_transform, get_default_aug_img_transform
 
 
 class ClassificationDataset(torch.utils.data.Dataset):
@@ -47,7 +34,17 @@ class ClassificationDataset(torch.utils.data.Dataset):
 
 
 class BaseClassificationDataModule(BaseDataModule, abc.ABC):
-    num_classes = 0
+    cls_num_classes = 0
+
+    def __init__(self, args):
+        super().__init__(args)
+        self.inst_num_classes = None
+
+    @property
+    def num_classes(self):
+        if self.inst_num_classes is not None:
+            return self.inst_num_classes
+        return self.cls_num_classes
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         print(f'Train class statistics:', self.train_dataset.class_stats(), file=sys.stderr)
@@ -64,7 +61,7 @@ class BaseClassificationDataModule(BaseDataModule, abc.ABC):
 
 class Sun360Classification(BaseClassificationDataModule):
     has_test_data = False
-    num_classes = 26
+    cls_num_classes = 26
 
     def setup(self, stage: Optional[str] = None) -> None:
         with open(os.path.join(os.path.dirname(__file__), 'meta/sun360-dataset26-random.txt')) as f:
@@ -80,8 +77,54 @@ class Sun360Classification(BaseClassificationDataModule):
 
         if stage == 'fit':
             self.train_dataset = ClassificationDataset(file_list=train_list, label_list=train_labels,
-                                                       transform=get_classification_aug_img_transform(self.image_size))
+                                                       transform=
+                                                       get_default_img_transform(self.image_size)
+                                                       if self.no_aug else
+                                                       get_default_aug_img_transform(self.image_size, scale=False))
             self.val_dataset = ClassificationDataset(file_list=val_list, label_list=val_labels,
                                                      transform=get_default_img_transform(self.image_size))
+        else:
+            raise NotImplemented()
+
+
+class EmbedDataset(torch.utils.data.Dataset):
+    def __init__(self, file_name):
+        data = torch.load(file_name)
+        self.data = data['latents']
+        self.labels = data['targets']
+
+        print(self.class_stats())
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        return self.data[index].unsqueeze(0), self.labels[index]
+
+    def class_stats(self):
+        return [v for k, v in sorted(Counter(x.item() for x in self.labels).items())]
+
+
+class EmbedClassification(BaseClassificationDataModule):
+    has_test_data = False
+
+    def __init__(self, args):
+        super().__init__(args)
+        self.inst_num_classes = args.num_classes
+
+    @classmethod
+    def add_argparse_args(cls, parent_parser, **kwargs):
+        parent_parser = super().add_argparse_args(parent_parser, **kwargs)
+        parser = parent_parser.add_argument_group(EmbedClassification.__name__)
+        parser.add_argument('--num-classes',
+                            help='number of classes',
+                            type=int,
+                            default=26)
+        return parent_parser
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        if stage == 'fit':
+            self.train_dataset = EmbedDataset(file_name=os.path.join(self.data_dir, 'embeds_train.pck'))
+            self.val_dataset = EmbedDataset(file_name=os.path.join(self.data_dir, 'embeds_val.pck'))
         else:
             raise NotImplemented()

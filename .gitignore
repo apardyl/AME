@@ -313,3 +313,5 @@ cython_debug/
 local_config.py
 wandb/
 checkpoints/
+*.pck
+logs/
