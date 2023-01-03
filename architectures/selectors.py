@@ -28,14 +28,14 @@ class BaseGlimpseSelector:
         self.debug_info = {}
         return self.forward(*args, **kwargs)
 
-    def _add_glimpses(self, glimpses, mask, mask_indices):
-        glimpses = glimpses.repeat(1, self.glimpse_size)
+    def _add_glimpses(self, glimpse, mask, mask_indices):
+        glimpses = glimpse.repeat(1, self.glimpse_size)
         for idx in range(1, self.glimpse_size):
             glimpses[:, idx] += idx
         glimpses = torch.cat([glimpses + self.grid_w * idx for idx in range(self.glimpse_size)], dim=1)
         mask = mask.scatter(1, glimpses, torch.full_like(mask, fill_value=True))
         mask_indices = torch.cat((mask_indices, glimpses), dim=1)
-        return mask, mask_indices
+        return mask, mask_indices, glimpse
 
     @abc.abstractmethod
     def forward(self, current_mask, mask_indices, glimpse_num):

@@ -8,6 +8,7 @@ import torch
 
 from architectures.base import BaseArchitecture
 from architectures.mae import mae_vit_large_patch16
+from architectures.retinalize import Retinalizer
 from architectures.utils import dict_to_cpu
 from datasets.base import BaseDataModule
 from datasets.segmentation import BaseSegmentationDataModule
@@ -35,6 +36,9 @@ class BaseGlimpseMae(BaseArchitecture, ABC):
                   file=sys.stderr)
 
         self.debug = False
+        self.retinizer = None
+        if args.retinalike:
+            self.retinizer = Retinalizer(self, args)
 
     @classmethod
     def add_argparse_args(cls, parent_parser):
@@ -60,6 +64,11 @@ class BaseGlimpseMae(BaseArchitecture, ABC):
                             action=argparse.BooleanOptionalAction)
         parser.add_argument('--single-step',
                             help='do all glimpse selections in one step',
+                            type=bool,
+                            default=False,
+                            action=argparse.BooleanOptionalAction)
+        parser.add_argument('--retinalike',
+                            help='use retina glimpses',
                             type=bool,
                             default=False,
                             action=argparse.BooleanOptionalAction)
@@ -95,7 +104,9 @@ class BaseGlimpseMae(BaseArchitecture, ABC):
     def calculate_loss(self, losses, batch):
         return torch.mean(torch.stack(losses))
 
-    def forward_one(self, x, mask_indices, mask) -> Dict[str, torch.Tensor]:
+    def forward_one(self, x, mask_indices, mask, glimpses) -> Dict[str, torch.Tensor]:
+        if self.retinizer:
+            x = self.retinizer(x, glimpses)
         latent = self.mae.forward_encoder(x, mask_indices)
         out = self.mae.forward_decoder(latent, mask, mask_indices)
         return {
@@ -112,16 +123,18 @@ class BaseGlimpseMae(BaseArchitecture, ABC):
         loss = 0
         losses = []
         steps = []
+        glimpses = []
         if not self.single_step:
             # zero step (initialize decoder attention weights)
-            out = self.forward_one(x, mask_indices, mask)
+            out = self.forward_one(x, mask_indices, mask, glimpses)
             if self.debug:
                 steps.append(dict_to_cpu(out))
         for i in range(self.num_glimpses):
-            mask, mask_indices = self.glimpse_selector(mask, mask_indices, i)
+            mask, mask_indices, glimpse = self.glimpse_selector(mask, mask_indices, i)
+            glimpses.append(glimpse)
             if self.single_step and i + 1 < self.num_glimpses:
                 continue
-            out = self.forward_one(x, mask_indices, mask)
+            out = self.forward_one(x, mask_indices, mask, glimpses)
             if compute_loss:
                 loss = self.calculate_loss_one(out, batch)
                 losses.append(loss)

@@ -53,11 +53,6 @@ def define_args(parent_parser):
 def main():
     data_module, model, args = experiment_from_args(sys.argv, add_argparse_args_fn=define_args)
 
-    print(
-        f'The model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters\n')
-    print(
-        f'The model has {sum(p.numel() for p in model.parameters() if not p.requires_grad):,} frozen parameters\n')
-
     plugins = []
     if args.use_fp16:
         grad_scaler = GradScaler()

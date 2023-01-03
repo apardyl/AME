@@ -30,8 +30,8 @@ class ClassificationMae(BaseGlimpseMae):
 
         self.criterion = nn.CrossEntropyLoss()
 
-    def forward_one(self, x, mask_indices, mask) -> Dict[str, torch.Tensor]:
-        out = super().forward_one(x, mask_indices, mask)
+    def forward_one(self, x, mask_indices, mask, glimpses) -> Dict[str, torch.Tensor]:
+        out = super().forward_one(x, mask_indices, mask, glimpses)
         latent = out['latent'][:, 0, :]  # get cls token
         out['classification'] = self.head(latent)
         return out
