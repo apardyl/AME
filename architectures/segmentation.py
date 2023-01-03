@@ -11,33 +11,39 @@ from datasets.segmentation import BaseSegmentationDataModule
 
 class SegmentationMae(BaseGlimpseMae):
     def __init__(self, args, datamodule):
-        super().__init__(args, datamodule, out_chans=self.num_classes)
+        super().__init__(args, datamodule, out_chans=datamodule.num_classes)
         assert isinstance(datamodule, BaseSegmentationDataModule)
         self.num_classes = datamodule.num_classes
-        self.mae.decoder_pred = nn.Linear(512, 16 ** 2 * self.num_classes, bias=True)
-
-        self.define_metric('mAP', partial(torchmetrics.classification.MulticlassAccuracy, num_classes=self.num_classes,
+        self.ignore_label = datamodule.ignore_label
+        self.define_metric('mPA', partial(torchmetrics.classification.MulticlassAccuracy, num_classes=self.num_classes,
+                                          ignore_index=self.ignore_label,
                                           average='macro',
                                           multidim_average='global'))
+        self.define_metric('PA', partial(torchmetrics.classification.MulticlassAccuracy, num_classes=self.num_classes,
+                                         ignore_index=self.ignore_label,
+                                         average='micro',
+                                         multidim_average='global'))
 
+    @torch.no_grad()
     def do_metrics(self, mode, out, batch):
         super().do_metrics(mode, out, batch)
-        with torch.no_grad():
-            segmentation = self.mae.segmentation_output(out['out'])
-            self.log_metric(mode, 'mAP', segmentation, batch[1])
+        segmentation = self.mae.segmentation_output(out['out'])
+        self.log_metric(mode, 'mPA', segmentation, batch[1])
+        self.log_metric(mode, 'PA', segmentation, batch[1])
 
-    def forward_seg_loss(self, pred, target, mask=None):
+    def log_metric(self, mode: str, name: str, *args, on_step: bool = False, on_epoch: bool = True,
+                   sync_dist: bool = True, prog_bar: bool = False, **kwargs) -> None:
+        self.get_metric(mode, name)(*args, **kwargs)
+        self.log(name=f'{mode}/{name}', value=self.get_metric(mode, name), on_step=on_step,
+                 on_epoch=on_epoch, sync_dist=sync_dist, prog_bar=prog_bar)
+
+    def forward_seg_loss(self, pred, target):
         pred = self.mae.unpatchify(pred)
-        loss = nn.functional.cross_entropy(pred, target, reduction="none").unsqueeze(1)
-        loss = self.mae.patchify(loss)
-        if mask is not None:
-            mask_neg = ~mask.unsqueeze(2)
-            loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
-
+        loss = nn.functional.cross_entropy(pred, target, ignore_index=self.ignore_label)
         return loss
 
     def calculate_loss_one(self, out, batch):
-        return self.forward_seg_loss(out['out'], batch[1], out['mask'] if self.masked_loss else None)
+        return self.forward_seg_loss(out['out'], batch[1])
 
 
 class RandomSegMae(SegmentationMae):
