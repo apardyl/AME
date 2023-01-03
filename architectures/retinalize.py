@@ -17,7 +17,7 @@ class Retinalizer:
         images2 = torch.zeros_like(images)
         for b in range(images.shape[0]):
             for g in glimpses:
-                x = g[b][0]
+                x = int(g[b][0])
                 h = x // self.grid_w
                 w = x % self.grid_w
                 h_px = h * self.patch_size

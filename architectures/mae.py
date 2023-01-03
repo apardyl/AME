@@ -197,7 +197,7 @@ class MaskedAutoencoderViT(nn.Module):
             mask_neg = ~mask
             loss = (loss * mask_neg).sum() / mask_neg.sum()  # mean loss on removed patches
         else:
-            loss = loss.sum()
+            loss = loss.sum() / pred.shape[1]  # mean loss on all patches
 
         return loss
 

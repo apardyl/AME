@@ -39,7 +39,7 @@ class ClassificationMae(BaseGlimpseMae):
     def calculate_loss_one(self, out, batch):
         rec_loss = self.mae.forward_loss(batch[0], out['out'], out['mask'] if self.masked_loss else None)
         cls_loss = self.criterion(out['classification'], batch[1])
-        return rec_loss * 0.001 + cls_loss
+        return rec_loss * 0.1 + cls_loss
 
     def do_metrics(self, mode, out, batch):
         super().do_metrics(mode, out, batch)
