@@ -23,6 +23,10 @@ class SegmentationMae(BaseGlimpseMae):
                                          ignore_index=self.ignore_label,
                                          average='micro',
                                          multidim_average='global'))
+        self.define_metric('mIoU', partial(torchmetrics.classification.MulticlassJaccardIndex, num_classes=self.num_classes,
+                                           ignore_index=self.ignore_label,
+                                           average='macro',
+                                           multidim_average='global'))
 
     @torch.no_grad()
     def do_metrics(self, mode, out, batch):
