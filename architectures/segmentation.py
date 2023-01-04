@@ -34,6 +34,7 @@ class SegmentationMae(BaseGlimpseMae):
         segmentation = self.mae.segmentation_output(out['out'])
         self.log_metric(mode, 'mPA', segmentation, batch[1])
         self.log_metric(mode, 'PA', segmentation, batch[1])
+        self.log_metric(mode, 'mIoU', segmentation, batch[1])
 
     def log_metric(self, mode: str, name: str, *args, on_step: bool = False, on_epoch: bool = True,
                    sync_dist: bool = True, prog_bar: bool = False, **kwargs) -> None:
