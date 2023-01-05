@@ -1,3 +1,4 @@
+import sys
 from functools import partial
 
 import torch
@@ -7,6 +8,7 @@ import torchmetrics
 from architectures.glimpse_mae import BaseGlimpseMae
 from architectures.selectors import RandomGlimpseSelector, CheckerboardGlimpseSelector, AttentionGlimpseSelector
 from datasets.segmentation import BaseSegmentationDataModule
+from architectures.mae_uper import mae_vit_large_patch16_dec512d8b_uper
 
 
 class SegmentationMae(BaseGlimpseMae):
@@ -60,4 +62,27 @@ class CheckerboardSegMae(SegmentationMae):
 
 
 class AttentionSegMae(SegmentationMae):
+    glimpse_selector_class = AttentionGlimpseSelector
+
+
+class SegmentationMaeUPer(SegmentationMae):
+    def __init__(self, args, datamodule):
+        super().__init__(args, datamodule)
+        self.mae = mae_vit_large_patch16_dec512d8b_uper(img_size=datamodule.image_size, out_chans=datamodule.num_classes)
+        if args.pretrained_mae_path:
+            checkpoint = torch.load(args.pretrained_mae_path, map_location='cpu')["model"]
+            del checkpoint["decoder_pred.weight"]
+            del checkpoint["decoder_pred.bias"]
+            new_checkpoint = {}
+            for k, v in checkpoint.items():
+                if "decoder" not in k and "mask_token" not in k:
+                    new_checkpoint[k] = v
+            self.mae.load_state_dict(new_checkpoint, strict=False)
+
+    def forward_seg_loss(self, pred, target):
+        loss = nn.functional.cross_entropy(pred, target, ignore_index=self.ignore_label)
+        return loss
+
+
+class AttentionSegMaeUPer(SegmentationMaeUPer):
     glimpse_selector_class = AttentionGlimpseSelector

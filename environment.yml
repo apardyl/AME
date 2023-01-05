@@ -193,6 +193,8 @@ dependencies:
   - matplotlib-inline=0.1.6
   - mistune=2.0.4
   - mkl=2020.2
+  - mmcv-full=1.7.1
+  - mmsegmentation 0.29.1
   - multidict=6.0.2
   - munkres=1.1.4
   - mysql-common=8.0.25
