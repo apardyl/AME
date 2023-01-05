@@ -2,6 +2,7 @@ import abc
 import argparse
 import sys
 from abc import ABC
+from collections import OrderedDict
 from typing import Any, Dict
 
 import torch
@@ -34,6 +35,8 @@ class BaseGlimpseMae(BaseArchitecture, ABC):
             print(self.load_pretrained_mae(args.pretrained_mae_path,
                                            segmentation=isinstance(datamodule, BaseSegmentationDataModule)),
                   file=sys.stderr)
+        if args.pretrained_segvit_path:
+            print(self.load_segmenting_vit(args.pretrained_segvit_path), file=sys.stderr)
 
         self.debug = False
         self.retinizer = None
@@ -57,6 +60,10 @@ class BaseGlimpseMae(BaseArchitecture, ABC):
                             help='path to pretrained MAE weights',
                             type=str,
                             default='architectures/mae_vit_l_128x256.pth')
+        parser.add_argument('--pretrained-segvit-path',
+                            help='path to pretrained ViT weights for segmentation',
+                            type=str,
+                            default=None)
         parser.add_argument('--sum-losses',
                             help='sum losses for all steps',
                             type=bool,
@@ -96,6 +103,51 @@ class BaseGlimpseMae(BaseArchitecture, ABC):
             return self.mae.load_state_dict(checkpoint, strict=False)
         else:
             return self.load_state_dict(checkpoint, strict=False)
+
+    @staticmethod
+    def convert_mmseg_to_mae(ckpt):
+        new_ckpt = OrderedDict()
+
+        for k, v in ckpt.items():
+            if not k.startswith('backbone.'):
+                continue
+            k = k.replace('backbone.', '')
+            if k.startswith('head'):
+                continue
+            if k.startswith('ln1'):
+                new_k = k.replace('ln1.', 'norm.')
+            elif k.startswith('patch_embed'):
+                if 'projection' in k:
+                    new_k = k.replace('projection', 'proj')
+                else:
+                    new_k = k
+            elif k.startswith('layers'):
+                if 'ln' in k:
+                    new_k = k.replace('ln', 'norm')
+                elif 'ffn.layers.0.0' in k:
+                    new_k = k.replace('ffn.layers.0.0', 'mlp.fc1')
+                elif 'ffn.layers.1' in k:
+                    new_k = k.replace('ffn.layers.1', 'mlp.fc2')
+                elif 'attn.attn.in_proj_' in k:
+                    new_k = k.replace('attn.attn.in_proj_', 'attn.qkv.')
+                elif 'attn.attn.out_proj' in k:
+                    new_k = k.replace('attn.attn.out_proj', 'attn.proj')
+                else:
+                    new_k = k
+                new_k = new_k.replace('layers.', 'blocks.')
+            else:
+                new_k = k
+            new_ckpt[new_k] = v
+
+        return new_ckpt
+
+    def load_segmenting_vit(self, path):
+        checkpoint = torch.load(path, map_location='cpu')
+        checkpoint = checkpoint['state_dict']
+        checkpoint = self.convert_mmseg_to_mae(checkpoint)
+        # checkpoint = {k[8:]: v for k, v in checkpoint.items() if k.startswith('encoder')}
+        del checkpoint['pos_embed']
+        return self.mae.load_state_dict(checkpoint, strict=False)
 
     @abc.abstractmethod
     def calculate_loss_one(self, out, batch):
