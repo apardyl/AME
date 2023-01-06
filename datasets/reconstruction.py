@@ -78,6 +78,25 @@ class Sun360Reconstruction(BaseReconstructionDataModule):
             raise NotImplemented()
 
 
+class ADE20KReconstruction(BaseReconstructionDataModule):
+    has_test_data = False
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        train_dir = os.path.join(self.data_dir, 'train', 'images')
+        val_dir = os.path.join(self.data_dir, 'val', 'images')
+
+        if stage == 'fit':
+            self.train_dataset = ReconstructionDataset(root_dir=train_dir,
+                                                       transform=
+                                                       get_default_img_transform(self.image_size)
+                                                       if self.no_aug else
+                                                       get_default_aug_img_transform(self.image_size))
+            self.val_dataset = ReconstructionDataset(root_dir=val_dir,
+                                                     transform=get_default_img_transform(self.image_size))
+        else:
+            raise NotImplemented()
+
+
 class TestImageDirReconstruction(BaseReconstructionDataModule):
     def setup(self, stage: Optional[str] = None) -> None:
         if stage == 'test':

@@ -56,7 +56,7 @@ class BaseArchitecture(LightningModule, MetricMixin, ABC):
                                  warmup_epochs=self.warmup_epochs,
                                  min_lr=self.min_lr,
                                  epochs=self.epochs)
-        scheduler.step(epoch=1)
+        scheduler.step(epoch=0)
 
         lr_schedulers = [
             {
@@ -68,7 +68,7 @@ class BaseArchitecture(LightningModule, MetricMixin, ABC):
         return [optimizer], lr_schedulers
 
     def lr_scheduler_step(self, scheduler, optimizer_idx: int, metric: Optional[Any]) -> None:
-        self.current_lr = scheduler.step(epoch=self.current_epoch + 1)
+        self.current_lr = scheduler.step(epoch=self.current_epoch)
 
     def do_metrics(self, mode, out, batch):
         pass

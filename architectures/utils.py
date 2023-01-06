@@ -47,7 +47,7 @@ class MaeScheduler(nn.Module):
     def step(self, epoch):
         """Decay the learning rate with half-cycle cosine after warmup"""
         if epoch < self.warmup_epochs:
-            lr = self.lr * epoch / self.warmup_epochs
+            lr = self.lr * (epoch + 1) / self.warmup_epochs
         else:
             lr = self.min_lr + (self.lr - self.min_lr) * 0.5 * \
                  (1. + math.cos(math.pi * (epoch - self.warmup_epochs) / (self.epochs + 1 - self.warmup_epochs)))

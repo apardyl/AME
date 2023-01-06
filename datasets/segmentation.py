@@ -10,7 +10,7 @@ from datasets.segmentation_transforms import get_aug_seg_transforms, get_seg_tra
 
 
 class SegmentationDataset(torch.utils.data.Dataset):
-    def __init__(self, root_dir, classes_start,  num_classes, transform=None):
+    def __init__(self, root_dir, classes_start, num_classes, transform=None):
         self.root_dir = root_dir
         self.classes_start = classes_start
         self.num_classes = num_classes
@@ -54,8 +54,10 @@ class ADE20KSegmentation(BaseSegmentationDataModule):
         # test_dir = os.path.join(self.data_dir, 'test')
 
         if stage == 'fit':
-            self.train_dataset = SegmentationDataset(train_dir, self.classes_start, self.num_classes, transform=get_aug_seg_transforms(self.image_size))
-            self.val_dataset = SegmentationDataset(val_dir, self.classes_start, self.num_classes, transform=get_seg_transforms(self.image_size))
+            self.train_dataset = SegmentationDataset(train_dir, self.classes_start, self.num_classes,
+                                                     transform=get_aug_seg_transforms(self.image_size))
+            self.val_dataset = SegmentationDataset(val_dir, self.classes_start, self.num_classes,
+                                                   transform=get_seg_transforms(self.image_size))
         elif stage == 'test':
             raise RuntimeError("There is no labeled test set for ADE20K")
 
@@ -72,7 +74,9 @@ class COCOStuffSegmentation(BaseSegmentationDataModule):
         # test_dir = os.path.join(self.data_dir, 'test')
 
         if stage == 'fit':
-            self.train_dataset = SegmentationDataset(train_dir, self.classes_start, self.num_classes, transform=get_aug_seg_transforms(self.image_size))
-            self.val_dataset = SegmentationDataset(val_dir, self.classes_start, self.num_classes, transform=get_seg_transforms(self.image_size))
+            self.train_dataset = SegmentationDataset(train_dir, self.classes_start, self.num_classes,
+                                                     transform=get_aug_seg_transforms(self.image_size))
+            self.val_dataset = SegmentationDataset(val_dir, self.classes_start, self.num_classes,
+                                                   transform=get_seg_transforms(self.image_size))
         elif stage == 'test':
             raise RuntimeError("There is no labeled test set for COCOStuff")

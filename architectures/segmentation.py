@@ -11,8 +11,8 @@ from datasets.segmentation import BaseSegmentationDataModule
 
 class SegmentationMae(BaseGlimpseMae):
     def __init__(self, args, datamodule):
-        super().__init__(args, datamodule, out_chans=datamodule.num_classes)
         assert isinstance(datamodule, BaseSegmentationDataModule)
+        super().__init__(args, datamodule, out_chans=datamodule.num_classes)
         self.num_classes = datamodule.num_classes
         self.ignore_label = datamodule.ignore_label
         self.define_metric('mPA', partial(torchmetrics.classification.MulticlassAccuracy, num_classes=self.num_classes,
@@ -27,6 +27,7 @@ class SegmentationMae(BaseGlimpseMae):
                                            ignore_index=self.ignore_label,
                                            average='macro',
                                            multidim_average='global'))
+        self.criterion = nn.CrossEntropyLoss(ignore_index=self.ignore_label)
 
     @torch.no_grad()
     def do_metrics(self, mode, out, batch):
@@ -44,7 +45,7 @@ class SegmentationMae(BaseGlimpseMae):
 
     def forward_seg_loss(self, pred, target):
         pred = self.mae.unpatchify(pred)
-        loss = nn.functional.cross_entropy(pred, target, ignore_index=self.ignore_label)
+        loss = self.criterion(pred, target)
         return loss
 
     def calculate_loss_one(self, out, batch):
