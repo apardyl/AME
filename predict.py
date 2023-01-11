@@ -97,7 +97,7 @@ def do_test(args, model, loader):
 
 
 def main():
-    data_module, model, args = experiment_from_args(sys.argv, add_argparse_args_fn=define_args)
+    data_module, model, args = experiment_from_args(sys.argv, add_argparse_args_fn=define_args, no_aug=True)
 
     split = args.split
     if split is None:
@@ -114,7 +114,7 @@ def main():
         'train': data_module.train_dataloader,
         'val': data_module.val_dataloader,
         'test': data_module.test_dataloader
-    }[split](no_aug=True)
+    }[split]()
 
     if args.visualization_path is not None:
         do_visualizations(args, model, loader)

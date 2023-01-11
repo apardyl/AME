@@ -7,7 +7,7 @@ from typing import Optional
 import torch
 from PIL import Image
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from torchvision.transforms import RandomHorizontalFlip, Resize, TrivialAugmentWide
+from torchvision.datasets import ImageNet
 
 from datasets.base import BaseDataModule
 from datasets.utils import get_default_img_transform, get_default_aug_img_transform
@@ -36,8 +36,8 @@ class ClassificationDataset(torch.utils.data.Dataset):
 class BaseClassificationDataModule(BaseDataModule, abc.ABC):
     cls_num_classes = 0
 
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, args, **kwargs):
+        super().__init__(args, **kwargs)
         self.inst_num_classes = None
 
     @property
@@ -87,6 +87,24 @@ class Sun360Classification(BaseClassificationDataModule):
             raise NotImplemented()
 
 
+class ImageNet1kClassification(BaseClassificationDataModule):
+    has_test_data = False
+    cls_num_classes = 1000
+
+    def setup(self, stage: Optional[str] = None) -> None:
+
+        if stage == 'fit':
+            self.train_dataset = ImageNet(root=self.data_dir, split='train',
+                                          transform=
+                                          get_default_img_transform(self.image_size)
+                                          if self.no_aug else
+                                          get_default_aug_img_transform(self.image_size, scale=False))
+            self.val_dataset = ImageNet(root=self.data_dir, split='val',
+                                        transform=get_default_img_transform(self.image_size))
+        else:
+            raise NotImplemented()
+
+
 class EmbedDataset(torch.utils.data.Dataset):
     def __init__(self, file_name):
         data = torch.load(file_name)
@@ -108,8 +126,8 @@ class EmbedDataset(torch.utils.data.Dataset):
 class EmbedClassification(BaseClassificationDataModule):
     has_test_data = False
 
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, args, **kwargs):
+        super().__init__(args, **kwargs)
         self.inst_num_classes = args.num_classes
 
     @classmethod

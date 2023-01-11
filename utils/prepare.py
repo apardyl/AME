@@ -8,7 +8,7 @@ import datasets
 
 
 def experiment_from_args(argv, prog_name='TrainWhereToLookNext',
-                         add_argparse_args_fn=None, modify_args_fn=None):
+                         add_argparse_args_fn=None, modify_args_fn=None, no_aug=False):
     parser = argparse.ArgumentParser(
         prog=prog_name
     )
@@ -43,7 +43,7 @@ def experiment_from_args(argv, prog_name='TrainWhereToLookNext',
     setattr(args, 'dataset', main_args.dataset)
     setattr(args, 'arch', main_args.arch)
 
-    data_module = data_module_class(args)
+    data_module = data_module_class(args, no_aug=no_aug)
     model = arch_class(args, data_module)
 
     return data_module, model, args
