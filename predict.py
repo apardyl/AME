@@ -61,7 +61,7 @@ def do_visualizations(args, model, loader):
         if idx >= args.max_batches:
             break
         out = model.predict_step([x.cuda() for x in batch], idx)
-        save_reconstructions(model, out, batch, vis_id=idx, dump_path=args.visualization)
+        save_reconstructions(model, out, batch, vis_id=idx, dump_path=args.visualization_path)
 
     model.debug = False
 

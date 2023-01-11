@@ -20,7 +20,7 @@ def save_reconstructions(model, output, batch, vis_id, dump_path):
         reconstructed = torch.stack([x['out'] for x in steps], dim=1).reshape(
             B * len(steps), *output['out'].shape[1:])
         mask = torch.stack([x['mask'] for x in steps], dim=1)
-        has_att_info = len(steps[1][2]) > 0
+        has_att_info = len(steps[1]['entropy']) > 0
         if has_att_info:
             entropies = torch.stack([x['entropy'].cpu() for x in steps[1:]], dim=1)
             selection_maps = torch.stack([x['selection_map'].cpu() for x in steps[1:]], dim=1)
@@ -39,9 +39,9 @@ def save_reconstructions(model, output, batch, vis_id, dump_path):
         os.makedirs(dump_path, exist_ok=True)
         for i in range(B):
             path = f"{dump_path}/{vis_id}_{i}.jpg"
-            fig, axs = plt.subplots(5 if has_att_info else 3, 9)
+            fig, axs = plt.subplots(5 if has_att_info else 3, 38)
             for s in range(len(steps)):
-                fig.set_size_inches(20, 7 if has_att_info else 5)
+                fig.set_size_inches(70, 7 if has_att_info else 5)
                 fig.tight_layout()
 
                 trg_image = np.array(target[i].permute(1, 2, 0), dtype=np.uint8)
