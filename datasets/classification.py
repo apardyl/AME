@@ -87,6 +87,11 @@ class Sun360Classification(BaseClassificationDataModule):
             raise NotImplemented()
 
 
+class ImageNetWithStats(ImageNet):
+    def class_stats(self):
+        return [v for k, v in sorted(Counter(self.targets).items())]
+
+
 class ImageNet1kClassification(BaseClassificationDataModule):
     has_test_data = False
     cls_num_classes = 1000
@@ -94,13 +99,13 @@ class ImageNet1kClassification(BaseClassificationDataModule):
     def setup(self, stage: Optional[str] = None) -> None:
 
         if stage == 'fit':
-            self.train_dataset = ImageNet(root=self.data_dir, split='train',
-                                          transform=
-                                          get_default_img_transform(self.image_size)
-                                          if self.no_aug else
-                                          get_default_aug_img_transform(self.image_size, scale=False))
-            self.val_dataset = ImageNet(root=self.data_dir, split='val',
-                                        transform=get_default_img_transform(self.image_size))
+            self.train_dataset = ImageNetWithStats(root=self.data_dir, split='train',
+                                                   transform=
+                                                   get_default_img_transform(self.image_size)
+                                                   if self.no_aug else
+                                                   get_default_aug_img_transform(self.image_size, scale=False))
+            self.val_dataset = ImageNetWithStats(root=self.data_dir, split='val',
+                                                 transform=get_default_img_transform(self.image_size))
         else:
             raise NotImplemented()
 
