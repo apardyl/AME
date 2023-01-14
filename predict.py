@@ -4,13 +4,14 @@ import sys
 
 import torch
 import tqdm
+from matplotlib import pyplot as plt
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import RichProgressBar, RichModelSummary
 from pytorch_lightning.strategies import DDPStrategy
 
 from architectures.reconstruction import ReconstructionMae
 from utils.prepare import experiment_from_args
-from utils.visualize import save_reconstructions
+from utils.visualize import save_reconstructions, upscale_patch_values
 
 
 def define_args(parent_parser):
@@ -43,6 +44,10 @@ def define_args(parent_parser):
                         default=None)
     parser.add_argument('--dump-path',
                         help='do latent dump to file',
+                        type=str,
+                        default=None)
+    parser.add_argument('--avg-glimpse-path',
+                        help='do avg glimpse to file',
                         type=str,
                         default=None)
     return parent_parser
@@ -90,6 +95,33 @@ def do_dump_latent(args, model, loader):
     model.debug = False
 
 
+def do_avg_glimpse(args, model, loader):
+    model.load_state_dict(torch.load(args.load_model_path, map_location='cpu')['state_dict'])
+
+    model = model.cuda()
+    model.eval()
+
+    avg_mask = None
+    items = 0
+
+    for idx, batch in enumerate(tqdm.tqdm(loader)):
+        if idx >= args.max_batches:
+            break
+        out = model.predict_step([x.cuda() for x in batch], idx)
+        items += out['mask'].shape[0]
+        if avg_mask is None:
+            avg_mask = out['mask'].detach().clone().cpu().float().sum(dim=0)
+        else:
+            avg_mask += out['mask'].detach().clone().cpu().float().sum(dim=0)
+    avg_mask /= items
+    grid_h = model.mae.grid_size[0]
+    grid_w = model.mae.grid_size[1]
+    patch_size = model.mae.patch_embed.patch_size
+    avg_mask = avg_mask.reshape(grid_h, grid_w).numpy()
+    avg_mask = upscale_patch_values(avg_mask, patch_size)
+    plt.imsave(args.avg_glimpse_path, avg_mask)
+
+
 def do_test(args, model, loader):
     trainer = Trainer(accelerator='auto', callbacks=[RichProgressBar(leave=True), RichModelSummary(max_depth=3)],
                       strategy=DDPStrategy(find_unused_parameters=False) if args.ddp else None)
@@ -124,6 +156,9 @@ def main():
 
     if args.dump_path is not None:
         do_dump_latent(args, model, loader)
+
+    if args.avg_glimpse_path is not None:
+        do_avg_glimpse(args, model, loader)
 
 
 if __name__ == "__main__":

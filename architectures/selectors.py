@@ -1,4 +1,5 @@
 import abc
+import argparse
 
 import torch
 import torch.nn as nn
@@ -72,6 +73,7 @@ class AttentionGlimpseSelector(BaseGlimpseSelector):
     def __init__(self, model, args):
         super().__init__(model, args)
         self.attention_layer = args.attention_layer
+        self.random_first = args.random_first
         assert not model.single_step
 
     @classmethod
@@ -82,10 +84,22 @@ class AttentionGlimpseSelector(BaseGlimpseSelector):
                             help='number of attention layer in MAE to source entropy information from (0-7)',
                             type=int,
                             default=7)
+        parser.add_argument('--random-first',
+                            help='randomly select first glimpse',
+                            type=bool,
+                            default=False,
+                            action=argparse.BooleanOptionalAction)
 
         return parent_parser
 
     def forward(self, current_mask, mask_indices, glimpse_num):
+        if self.random_first and glimpse_num == 0:
+            N = current_mask.shape[0]
+            new_glimpse_x = torch.randint(0, self.grid_w - 2, size=(N, 1), device=current_mask.device)
+            new_glimpse_y = torch.randint(0, self.grid_h - 2, size=(N, 1), device=current_mask.device)
+            glimpses = self.grid_w * new_glimpse_y + new_glimpse_x
+            return self._add_glimpses(glimpses, current_mask, mask_indices)
+
         with torch.no_grad():
             # get self attention weights
             attn = self.model.mae.last_attn[self.attention_layer][..., 1:, 1:]
