@@ -10,6 +10,7 @@ from pytorch_lightning.callbacks import RichProgressBar, RichModelSummary
 from pytorch_lightning.strategies import DDPStrategy
 
 from architectures.reconstruction import ReconstructionMae
+from architectures.segmentation import SegmentationMae
 from utils.prepare import experiment_from_args
 from utils.visualize import save_reconstructions, upscale_patch_values
 
@@ -50,23 +51,28 @@ def define_args(parent_parser):
                         help='do avg glimpse to file',
                         type=str,
                         default=None)
+    parser.add_argument('--last-only',
+                        help='save visualizations only for the last step',
+                        type=bool,
+                        default=False,
+                        action=argparse.BooleanOptionalAction)
     return parent_parser
 
 
 def do_visualizations(args, model, loader):
-    model.load_state_dict(torch.load(args.load_model_path, map_location='cpu')['state_dict'])
+    print(model.load_state_dict(torch.load(args.load_model_path, map_location='cpu')['state_dict']))
 
     model = model.cuda()
     model.eval()
     model.debug = True
 
-    assert isinstance(model, ReconstructionMae)
+    assert isinstance(model, ReconstructionMae) or isinstance(model, SegmentationMae)
 
     for idx, batch in enumerate(tqdm.tqdm(loader, total=min(args.max_batches, len(loader)))):
         if idx >= args.max_batches:
             break
         out = model.predict_step([x.cuda() for x in batch], idx)
-        save_reconstructions(model, out, batch, vis_id=idx, dump_path=args.visualization_path)
+        save_reconstructions(model, out, batch, vis_id=idx, dump_path=args.visualization_path, last_only=args.last_only)
 
     model.debug = False
 
