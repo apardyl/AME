@@ -1,10 +1,13 @@
-Setup:  
+# Active Visual Exploration Based on Attention-Map Entropy
+### [Project Page](https://io.pardyl.com/AME/) | [Paper](https://arxiv.org/abs/2303.06457)
+
+## Setup
 ```shell
 git clone https://bitbucket.org/ideas_ncbr/where-to-look-next && cd where-to-look-next 
 conda env create -f environment.yml -n wtln # we recommend using mamba instead of conda (better performance)
 conda activate wtln
 ```
-Run experiments
+## Train
 * download and extract the requested dataset
 * run training with:
 ```shell
