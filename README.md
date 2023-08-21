@@ -1,5 +1,5 @@
 # Active Visual Exploration Based on Attention-Map Entropy (IJCAI 2023)
-### [Project Page](https://io.pardyl.com/AME/) | [Paper](https://arxiv.org/abs/2303.06457)
+### [Project Page](https://io.pardyl.com/AME/) | [Paper](https://doi.org/10.24963/ijcai.2023/145)
 Official PyTorch implementation of the paper: "Active Visual Exploration Based on Attention-Map Entropy"
 
 ![](https://io.pardyl.com/AME/static/images/architecture.png)
@@ -8,7 +8,7 @@ Official PyTorch implementation of the paper: "Active Visual Exploration Based o
 
 > **Active Visual Exploration Based on Attention-Map Entropy**<br>
 > Adam Pardyl, Grzegorz Rypeść, Grzegorz Kurzejamski, Bartosz Zieliński, Tomasz Trzciński<br>
-> [https://arxiv.org/pdf/2007.01289](https://arxiv.org/abs/2303.06457) <br>
+> [https://doi.org/10.24963/ijcai.2023/145](https://doi.org/10.24963/ijcai.2023/145) <br>
 >
 >**Abstract:** Active visual exploration addresses the issue of limited sensor capabilities in real-world scenarios, where successive observations are actively chosen based on the environment. To tackle this problem, we introduce a new technique called Attention-Map Entropy (AME). It leverages the internal uncertainty of the transformer-based model to determine the most informative observations. In contrast to existing solutions, it does not require additional loss components, which simplifies the training. Through experiments, which also mimic retina-like sensors, we show that such simplified training significantly improves the performance of reconstruction, segmentation and classification on publicly available datasets.
 ___
@@ -63,10 +63,17 @@ If you find this useful for your research, please use the following.
 
 ```
 @inproceedings{pardyl2023active,
-  title={Active Visual Exploration Based on Attention-Map Entropy},
-  author={Pardyl, Adam and Rype{\'s}{\'c}, Grzegorz and Kurzejamski,
-            Grzegorz and Zieli{\'n}ski, Bartosz and Trzci{\'n}ski, Tomasz},
-  booktitle={Proceedings of the 32nd International Joint Conference on Artificial Intelligence},
-  year={2023}
+  title     = {Active Visual Exploration Based on Attention-Map Entropy},
+  author    = {Pardyl, Adam and Rypeść, Grzegorz and Kurzejamski, Grzegorz and Zieliński, Bartosz and Trzciński, Tomasz},
+  booktitle = {Proceedings of the Thirty-Second International Joint Conference on
+               Artificial Intelligence, {IJCAI-23}},
+  publisher = {International Joint Conferences on Artificial Intelligence Organization},
+  editor    = {Edith Elkind},
+  pages     = {1303--1311},
+  year      = {2023},
+  month     = {8},
+  note      = {Main Track},
+  doi       = {10.24963/ijcai.2023/145},
+  url       = {https://doi.org/10.24963/ijcai.2023/145}
 }
 ```
