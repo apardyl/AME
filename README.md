@@ -15,7 +15,7 @@ ___
 
 ## Setup
 ```shell
-git clone https://bitbucket.org/ideas_ncbr/where-to-look-next && cd where-to-look-next 
+git clone https://github.com/apardyl/AME.git && cd AME
 conda env create -f environment.yml -n wtln # we recommend using mamba instead of conda (better performance)
 conda activate wtln
 ```
