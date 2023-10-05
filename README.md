@@ -58,6 +58,10 @@ Embeddings for head-only classification are generated with predict.py (`--dump-p
 Average glimpse selection maps and evaluation of a trained model can be obtained with predict.py
 with `--avg-glimpse-path` and `--test` params accordingly.
 
+## Trained models
+
+Models trained by us are avaialble at: [https://ideasncbr-my.sharepoint.com/:f:/g/personal/adam_pardyl_ideas-ncbr_pl/EljEH2vCtdFGj-LcYleHIhYB1ANXWmZhoH0DnjejY-IjiA?e=HVsQjp](https://ideasncbr-my.sharepoint.com/:f:/g/personal/adam_pardyl_ideas-ncbr_pl/EljEH2vCtdFGj-LcYleHIhYB1ANXWmZhoH0DnjejY-IjiA?e=HVsQjp)
+
 ## Citation
 If you find this useful for your research, please use the following.
 
