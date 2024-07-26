@@ -60,7 +60,7 @@ with `--avg-glimpse-path` and `--test` params accordingly.
 
 ## Trained models
 
-Models trained by us are avaialble at: [https://ideasncbr-my.sharepoint.com/:f:/g/personal/adam_pardyl_ideas-ncbr_pl/EljEH2vCtdFGj-LcYleHIhYB1ANXWmZhoH0DnjejY-IjiA?e=HVsQjp](https://ideasncbr-my.sharepoint.com/:f:/g/personal/adam_pardyl_ideas-ncbr_pl/EljEH2vCtdFGj-LcYleHIhYB1ANXWmZhoH0DnjejY-IjiA?e=HVsQjp)
+Models trained by us are avaialble at: [https://huggingface.co/apardyl/AME/tree/main](https://huggingface.co/apardyl/AME/tree/main)
 
 ## Citation
 If you find this useful for your research, please use the following.
